@@ -24,7 +24,13 @@
     <string name="grant_permissions">Выдать разрешения</string>
     <string name="ble_status">BLE</string>
     <string name="connection_status">Подключение</string>
-    <string name="scan">Сканировать</string>
+    <string name="scan">Подключиться</string>
+    <string name="ble_status_bluetooth_off">Bluetooth выключен</string>
+    <string name="ble_status_searching">Поиск</string>
+    <string name="ble_status_connecting">Подключение</string>
+    <string name="ble_status_connected_hr">Подключено: пульс %1$d</string>
+    <string name="ble_status_connected">Подключено</string>
+    <string name="ble_status_not_connected">Не подключено</string>
     <string name="connect">Подключить</string>
     <string name="disconnect">Отключить</string>
     <string name="start_logging">Начать запись</string>

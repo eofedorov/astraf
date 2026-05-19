@@ -76,6 +76,10 @@ class MainActivity : ComponentActivity() {
         if (permissionsGranted) {
             session.ensureLocationTracking()
             LoggingRecovery.startIfNeeded(this)
+            startPreferredBleScan()
+        } else {
+            pendingBleScanAfterPermissions = true
+            permissionLauncher.launch(Permissions.requiredRuntimePermissions())
         }
 
         setContent {
@@ -85,7 +89,7 @@ class MainActivity : ComponentActivity() {
                     showBatteryOptimizationButton = batteryOptimizationEnabled,
                     loggingPersisted = LoggingStateStore.isActive(this@MainActivity),
                     session = session,
-                    onScanBle = { onScanBleClicked() },
+                    onConnectBle = { onConnectBleClicked() },
                     onStartLogging = { startBackgroundLogging() },
                     onPauseLogging = { pauseBackgroundLogging() },
                     onResumeLogging = { resumeBackgroundLogging() },
@@ -110,7 +114,7 @@ class MainActivity : ComponentActivity() {
         super.onDestroy()
     }
 
-    private fun onScanBleClicked() {
+    private fun onConnectBleClicked() {
         if (!Permissions.hasAll(this)) {
             pendingBleScanAfterPermissions = true
             permissionLauncher.launch(Permissions.requiredRuntimePermissions())
@@ -186,7 +190,7 @@ private fun LoggerAppScreen(
     showBatteryOptimizationButton: Boolean,
     loggingPersisted: Boolean,
     session: LoggerSession,
-    onScanBle: () -> Unit,
+    onConnectBle: () -> Unit,
     onStartLogging: () -> Unit,
     onPauseLogging: () -> Unit,
     onResumeLogging: () -> Unit,
@@ -266,7 +270,7 @@ private fun LoggerAppScreen(
             SettingsScreen(
                 session = session,
                 showBatteryOptimizationButton = showBatteryOptimizationButton,
-                onScan = onScanBle,
+                onConnect = onConnectBle,
                 onOpenBatterySettings = onOpenBatterySettings,
                 modifier = Modifier
                     .fillMaxSize()

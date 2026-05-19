@@ -16,6 +16,8 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.astraf.hrgpslogger.BleConnectionState
+import com.astraf.hrgpslogger.BleHeartRateClient
 import com.astraf.hrgpslogger.LoggerSession
 import com.astraf.hrgpslogger.R
 
@@ -23,13 +25,23 @@ import com.astraf.hrgpslogger.R
 fun SettingsScreen(
     session: LoggerSession,
     showBatteryOptimizationButton: Boolean,
-    onScan: () -> Unit,
+    onConnect: () -> Unit,
     onOpenBatterySettings: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val bleClient = session.bleClient
     val connectionState by bleClient.connectionState.collectAsStateWithLifecycle()
+    val heartRate by bleClient.heartRateBpm.collectAsStateWithLifecycle()
+    val isScanning by bleClient.isScanning.collectAsStateWithLifecycle()
     val bleStatus by bleClient.statusMessage.collectAsStateWithLifecycle()
+
+    val statusLine = formatBleStatusLine(
+        bleClient = bleClient,
+        connectionState = connectionState,
+        heartRate = heartRate,
+        isScanning = isScanning,
+        detailStatus = bleStatus,
+    )
 
     Column(
         modifier = modifier
@@ -44,17 +56,15 @@ fun SettingsScreen(
         )
 
         Card(modifier = Modifier.fillMaxWidth()) {
-            Column(
+            Text(
+                text = statusLine,
                 modifier = Modifier.padding(12.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp),
-            ) {
-                Text("${stringResource(R.string.ble_status)}: $bleStatus")
-                Text("${stringResource(R.string.connection_status)}: ${connectionState.name}")
-            }
+                style = MaterialTheme.typography.bodyLarge,
+            )
         }
 
         Button(
-            onClick = onScan,
+            onClick = onConnect,
             modifier = Modifier.fillMaxWidth(),
         ) {
             Text(stringResource(R.string.scan))
@@ -66,6 +76,40 @@ fun SettingsScreen(
                 modifier = Modifier.fillMaxWidth(),
             ) {
                 Text(stringResource(R.string.battery_optimization))
+            }
+        }
+    }
+}
+
+@Composable
+private fun formatBleStatusLine(
+    bleClient: BleHeartRateClient,
+    connectionState: BleConnectionState,
+    heartRate: Int?,
+    isScanning: Boolean,
+    detailStatus: String,
+): String {
+    if (!bleClient.isBluetoothAvailable()) {
+        return stringResource(R.string.ble_status_bluetooth_off)
+    }
+    return when (connectionState) {
+        BleConnectionState.CONNECTING,
+        BleConnectionState.CONNECTED,
+        -> stringResource(R.string.ble_status_connecting)
+        BleConnectionState.READY -> {
+            if (heartRate != null && heartRate > 0) {
+                stringResource(R.string.ble_status_connected_hr, heartRate)
+            } else {
+                stringResource(R.string.ble_status_connected)
+            }
+        }
+        BleConnectionState.DISCONNECTED -> {
+            when {
+                isScanning -> stringResource(R.string.ble_status_searching)
+                detailStatus == "Пульсометр не найден" -> detailStatus
+                detailStatus == "Нет разрешения Bluetooth" -> detailStatus
+                detailStatus.startsWith("Ошибка") -> detailStatus
+                else -> stringResource(R.string.ble_status_not_connected)
             }
         }
     }

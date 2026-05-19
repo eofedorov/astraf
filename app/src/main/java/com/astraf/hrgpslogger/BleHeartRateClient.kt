@@ -50,8 +50,11 @@ class BleHeartRateClient(context: Context) {
     val statusMessage: StateFlow<String> = _statusMessage.asStateFlow()
 
     private var bluetoothGatt: BluetoothGatt? = null
-    private var isScanning = false
+    private var scanActive = false
     private var autoConnectScan = false
+
+    private val _isScanning = MutableStateFlow(false)
+    val isScanning: StateFlow<Boolean> = _isScanning.asStateFlow()
     private val scanTimeoutRunnable = Runnable { stopScanInternal(notifyNotFound = true) }
 
     @SuppressLint("MissingPermission")
@@ -64,8 +67,7 @@ class BleHeartRateClient(context: Context) {
         }
 
         override fun onScanFailed(errorCode: Int) {
-            isScanning = false
-            autoConnectScan = false
+            setScanning(false)
             _statusMessage.value = "Ошибка сканирования BLE: $errorCode"
         }
     }
@@ -172,12 +174,11 @@ class BleHeartRateClient(context: Context) {
             }
             BleConnectionState.DISCONNECTED -> Unit
         }
-        if (isScanning) {
+        if (scanActive) {
             stopScanInternal(notifyNotFound = false)
         }
         autoConnectScan = true
-        isScanning = true
-        _statusMessage.value = "Поиск пульсометра $TARGET_DEVICE_ADDRESS..."
+        setScanning(true)
         val settings = ScanSettings.Builder()
             .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
             .build()
@@ -189,7 +190,7 @@ class BleHeartRateClient(context: Context) {
             mainHandler.postDelayed(scanTimeoutRunnable, SCAN_TIMEOUT_MS)
         } catch (securityException: SecurityException) {
             Log.e(TAG, "BLE scan permission denied", securityException)
-            isScanning = false
+            setScanning(false)
             autoConnectScan = false
             _statusMessage.value = "Нет разрешения Bluetooth"
         }
@@ -198,13 +199,13 @@ class BleHeartRateClient(context: Context) {
     @SuppressLint("MissingPermission")
     private fun stopScanInternal(notifyNotFound: Boolean) {
         mainHandler.removeCallbacks(scanTimeoutRunnable)
-        if (!isScanning) return
+        if (!scanActive) return
         try {
             bluetoothAdapter?.bluetoothLeScanner?.stopScan(scanCallback)
         } catch (securityException: SecurityException) {
             Log.e(TAG, "BLE stop scan permission denied", securityException)
         }
-        isScanning = false
+        setScanning(false)
         val wasAutoConnect = autoConnectScan
         autoConnectScan = false
         if (notifyNotFound &&
@@ -252,6 +253,11 @@ class BleHeartRateClient(context: Context) {
     private fun cleanupGatt() {
         bluetoothGatt?.close()
         bluetoothGatt = null
+    }
+
+    private fun setScanning(scanning: Boolean) {
+        scanActive = scanning
+        _isScanning.value = scanning
     }
 
     companion object {

@@ -18,7 +18,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
-import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 
@@ -146,11 +145,8 @@ class LoggingForegroundService : Service() {
 
     private fun promoteForeground(recovering: Boolean) {
         val notification = buildNotification(
-            bpm = session.bleClient.heartRateBpm.value,
-            location = session.locationTracker.location.value,
-            speedKmh = session.locationTracker.speedKmh.value,
             recovering = recovering,
-            paused = false,
+            paused = session.csvLogger.phase.value == RecordingPhase.Paused,
         )
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             val type = ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION or
@@ -168,22 +164,13 @@ class LoggingForegroundService : Service() {
 
     private fun startNotificationUpdates() {
         notificationUpdateJob?.cancel()
-        notificationUpdateJob = combine(
-            session.bleClient.heartRateBpm,
-            session.locationTracker.location,
-            session.locationTracker.speedKmh,
-            session.csvLogger.phase,
-        ) { bpm, location, speedKmh, phase -> Triple(bpm, location, speedKmh) to phase }
-            .onEach { (data, phase) ->
-                val (bpm, location, speedKmh) = data
+        notificationUpdateJob = session.csvLogger.phase
+            .onEach { phase ->
                 if (phase == RecordingPhase.Recording) {
                     showRecoveringInNotification = false
                     session.persistLoggingState(paused = false)
                 }
                 updateNotification(
-                    bpm = bpm,
-                    location = location,
-                    speedKmh = speedKmh,
                     recovering = showRecoveringInNotification,
                     paused = phase == RecordingPhase.Paused,
                 )
@@ -192,17 +179,11 @@ class LoggingForegroundService : Service() {
     }
 
     private fun updateNotification(
-        bpm: Int? = session.bleClient.heartRateBpm.value,
-        location: LocationSample? = session.locationTracker.location.value,
-        speedKmh: Float? = session.locationTracker.speedKmh.value,
         recovering: Boolean = false,
         paused: Boolean = session.csvLogger.phase.value == RecordingPhase.Paused,
     ) {
         val manager = getSystemService(NotificationManager::class.java)
-        manager.notify(
-            NOTIFICATION_ID,
-            buildNotification(bpm, location, speedKmh, recovering, paused),
-        )
+        manager.notify(NOTIFICATION_ID, buildNotification(recovering, paused))
     }
 
     private fun acquireWakeLock() {
@@ -238,24 +219,9 @@ class LoggingForegroundService : Service() {
     }
 
     private fun buildNotification(
-        bpm: Int?,
-        location: LocationSample?,
-        speedKmh: Float?,
         recovering: Boolean = false,
         paused: Boolean = false,
     ): Notification {
-        val bpmText = bpm?.let { getString(R.string.notification_bpm, it) }
-            ?: getString(R.string.notification_bpm_unknown)
-        val locationText = location?.let {
-            getString(
-                R.string.notification_location,
-                it.latitude,
-                it.longitude,
-            )
-        } ?: getString(R.string.notification_location_unknown)
-        val speedText = speedKmh?.let { getString(R.string.notification_speed, it) }
-            ?: getString(R.string.notification_speed_unknown)
-
         val title = when {
             recovering -> getString(R.string.notification_title_recovering)
             paused -> getString(R.string.notification_title_paused)
@@ -268,24 +234,33 @@ class LoggingForegroundService : Service() {
             Intent(this, MainActivity::class.java),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
-        val stopIntent = PendingIntent.getService(
-            this,
-            1,
-            Intent(this, LoggingForegroundService::class.java).apply { action = ACTION_FINISH },
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
-        )
+        val toggleAction = if (paused) {
+            PendingIntent.getService(
+                this,
+                2,
+                Intent(this, LoggingForegroundService::class.java).apply {
+                    action = ACTION_RESUME_SESSION
+                },
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+            ) to getString(R.string.resume_logging)
+        } else {
+            PendingIntent.getService(
+                this,
+                1,
+                Intent(this, LoggingForegroundService::class.java).apply {
+                    action = ACTION_PAUSE
+                },
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+            ) to getString(R.string.pause_logging)
+        }
 
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(title)
-            .setContentText("$bpmText · $speedText")
-            .setStyle(
-                NotificationCompat.BigTextStyle().bigText("$bpmText\n$speedText\n$locationText"),
-            )
             .setContentIntent(openAppIntent)
             .setOngoing(true)
             .setOnlyAlertOnce(true)
-            .addAction(0, getString(R.string.notification_stop), stopIntent)
+            .addAction(0, toggleAction.second, toggleAction.first)
             .build()
     }
 

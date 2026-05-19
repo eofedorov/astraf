@@ -5,13 +5,6 @@
     <string name="notification_channel_description">Фоновая запись данных при выключенном экране</string>
     <string name="notification_title">Идёт запись</string>
     <string name="notification_title_recovering">Восстановление записи…</string>
-    <string name="notification_bpm">Пульс: %1$d уд/мин</string>
-    <string name="notification_bpm_unknown">Пульс: —</string>
-    <string name="notification_location">GPS: %1$.5f, %2$.5f</string>
-    <string name="notification_location_unknown">GPS: —</string>
-    <string name="notification_speed">%1$.1f км/ч</string>
-    <string name="notification_speed_unknown">— км/ч</string>
-    <string name="notification_stop">Остановить</string>
     <string name="background_logging_hint">Запись продолжается в фоне. Не закрывайте приложение из списка недавних во время тренировки.</string>
     <string name="battery_optimization">Отключить оптимизацию батареи</string>
 

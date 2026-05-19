@@ -27,6 +27,7 @@ class LoggingForegroundService : Service() {
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private var wakeLock: PowerManager.WakeLock? = null
     private var notificationUpdateJob: Job? = null
+    private var showRecoveringInNotification = false
     private lateinit var session: LoggerSession
 
     override fun onCreate() {
@@ -78,6 +79,8 @@ class LoggingForegroundService : Service() {
         acquireWakeLock()
         session.ensureLocationTracking()
 
+        showRecoveringInNotification = resume
+
         val csvFileName: String?
         if (resume && LoggingStateStore.isActive(this)) {
             csvFileName = LoggingStateStore.getCsvFileName(this)
@@ -89,6 +92,7 @@ class LoggingForegroundService : Service() {
             }
         } else {
             csvFileName = session.startCsvCollection()
+            showRecoveringInNotification = false
             LoggingStateStore.save(
                 this,
                 csvFileName = csvFileName,
@@ -97,10 +101,19 @@ class LoggingForegroundService : Service() {
             )
         }
 
+        if (session.csvLogger.phase.value == RecordingPhase.Recording) {
+            showRecoveringInNotification = false
+        }
+
+        if (!session.csvLogger.hasActiveSession()) {
+            showRecoveringInNotification = false
+            return
+        }
+
         session.persistLoggingState(paused = false)
         isRunning = true
-        promoteForeground(recovering = resume)
-        startNotificationUpdates(recovering = resume)
+        promoteForeground(recovering = showRecoveringInNotification)
+        startNotificationUpdates()
     }
 
     private fun pauseLogging() {
@@ -115,8 +128,9 @@ class LoggingForegroundService : Service() {
         session.resumeCsvCollection()
         session.persistLoggingState(paused = false)
         isRunning = true
+        showRecoveringInNotification = false
         promoteForeground(recovering = false)
-        startNotificationUpdates(recovering = false)
+        startNotificationUpdates()
     }
 
     private fun stopLoggingAndSelf() {
@@ -152,7 +166,7 @@ class LoggingForegroundService : Service() {
         }
     }
 
-    private fun startNotificationUpdates(recovering: Boolean) {
+    private fun startNotificationUpdates() {
         notificationUpdateJob?.cancel()
         notificationUpdateJob = combine(
             session.bleClient.heartRateBpm,
@@ -163,13 +177,14 @@ class LoggingForegroundService : Service() {
             .onEach { (data, phase) ->
                 val (bpm, location, speedKmh) = data
                 if (phase == RecordingPhase.Recording) {
+                    showRecoveringInNotification = false
                     session.persistLoggingState(paused = false)
                 }
                 updateNotification(
                     bpm = bpm,
                     location = location,
                     speedKmh = speedKmh,
-                    recovering = recovering,
+                    recovering = showRecoveringInNotification,
                     paused = phase == RecordingPhase.Paused,
                 )
             }

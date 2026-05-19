@@ -165,16 +165,21 @@ fun RideScreen(
                     )
                 }
                 RecordingPhase.Recording -> {
-                    if (isBackgroundServiceRunning || loggingPersisted) {
-                        Text(
-                            text = if (isBackgroundServiceRunning) {
-                                stringResource(R.string.background_active)
-                            } else {
-                                stringResource(R.string.background_recovering)
-                            },
-                            color = MaterialTheme.colorScheme.primary,
-                            style = MaterialTheme.typography.bodySmall,
-                        )
+                    when {
+                        isBackgroundServiceRunning -> {
+                            Text(
+                                text = stringResource(R.string.background_active),
+                                color = MaterialTheme.colorScheme.primary,
+                                style = MaterialTheme.typography.bodySmall,
+                            )
+                        }
+                        loggingPersisted -> {
+                            Text(
+                                text = stringResource(R.string.background_recovering),
+                                color = MaterialTheme.colorScheme.primary,
+                                style = MaterialTheme.typography.bodySmall,
+                            )
+                        }
                     }
                 }
             }

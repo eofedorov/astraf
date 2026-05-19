@@ -75,6 +75,7 @@ fun RideMapView(
     var style by remember { mutableStateOf<Style?>(null) }
     var userHasPanned by remember { mutableStateOf(false) }
     var didInitialCenter by remember { mutableStateOf(false) }
+    var isDisposed by remember { mutableStateOf(false) }
 
     val mapView = remember {
         MapView(context).apply {
@@ -82,24 +83,39 @@ fun RideMapView(
         }
     }
 
+    fun syncMapLifecycleToOwner() {
+        if (isDisposed) return
+        val state = lifecycleOwner.lifecycle.currentState
+        if (state.isAtLeast(Lifecycle.State.STARTED)) {
+            mapView.onStart()
+        }
+        if (state.isAtLeast(Lifecycle.State.RESUMED) && isMapActive) {
+            mapView.onResume()
+        } else if (!isMapActive || state.isAtLeast(Lifecycle.State.CREATED)) {
+            mapView.onPause()
+        }
+    }
+
     DisposableEffect(lifecycleOwner, isMapActive) {
         val observer = LifecycleEventObserver { _, event ->
+            if (isDisposed) return@LifecycleEventObserver
             when (event) {
                 Lifecycle.Event.ON_START -> mapView.onStart()
                 Lifecycle.Event.ON_RESUME -> if (isMapActive) mapView.onResume()
                 Lifecycle.Event.ON_PAUSE -> mapView.onPause()
                 Lifecycle.Event.ON_STOP -> mapView.onStop()
-                Lifecycle.Event.ON_DESTROY -> mapView.onDestroy()
                 else -> Unit
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
+        syncMapLifecycleToOwner()
         onDispose {
             lifecycleOwner.lifecycle.removeObserver(observer)
         }
     }
 
     LaunchedEffect(isMapActive) {
+        if (isDisposed) return@LaunchedEffect
         if (isMapActive) {
             if (lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) {
                 mapView.onResume()
@@ -111,6 +127,7 @@ fun RideMapView(
 
     DisposableEffect(mapView) {
         mapView.getMapAsync { map ->
+            if (isDisposed) return@getMapAsync
             map.uiSettings.apply {
                 isZoomGesturesEnabled = true
                 isScrollGesturesEnabled = true
@@ -118,7 +135,6 @@ fun RideMapView(
                 isTiltGesturesEnabled = true
                 isAttributionEnabled = true
             }
-            map.setTileCacheEnabled(true)
             map.addOnCameraMoveStartedListener { reason ->
                 if (reason == MapLibreMap.OnCameraMoveStartedListener.REASON_API_GESTURE) {
                     userHasPanned = true
@@ -126,6 +142,7 @@ fun RideMapView(
             }
             mapLibreMap = map
             map.setStyle(OSM_STYLE_URI) { loadedStyle ->
+                if (isDisposed) return@setStyle
                 style = loadedStyle
                 setupOverlayLayers(loadedStyle)
                 loadedStyle.getSourceAs<RasterSource>(OSM_SOURCE_ID)?.setVolatile(false)
@@ -135,10 +152,20 @@ fun RideMapView(
                     .build()
             }
         }
-        onDispose { }
+        onDispose {
+            isDisposed = true
+            mapLibreMap = null
+            style = null
+            runCatching {
+                mapView.onPause()
+                mapView.onStop()
+                mapView.onDestroy()
+            }
+        }
     }
 
     LaunchedEffect(style, locationSample, track) {
+        if (isDisposed) return@LaunchedEffect
         val currentStyle = style ?: return@LaunchedEffect
         updateTrackLayer(currentStyle, track)
         updateLocationLayer(currentStyle, locationSample)

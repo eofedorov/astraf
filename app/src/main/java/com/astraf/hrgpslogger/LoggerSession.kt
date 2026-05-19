@@ -9,6 +9,7 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
+import java.io.File
 
 class LoggerSession(context: Context) {
 
@@ -40,13 +41,17 @@ class LoggerSession(context: Context) {
 
     fun restorePausedSession(fileName: String) {
         csvLogger.restorePausedSession(fileName)
-        csvLogger.currentFile()?.let { activeTrackStore.restoreFromCsv(it) }
-        parseTrackStartMillis(fileName)?.let { tripStatsTracker.restorePausedAnchor(it) }
+        restoreTrackAndStatsFromFile(fileName)
         LoggingStateStore.getBleAddress(appContext)?.let { address ->
             if (bleClient.connectionState.value != BleConnectionState.READY) {
                 bleClient.connect(address)
             }
         }
+    }
+
+    fun ensureTrackLoadedFromFile(fileName: String) {
+        if (activeTrackStore.points.value.isNotEmpty()) return
+        restoreTrackAndStatsFromFile(fileName)
     }
 
     /**
@@ -56,19 +61,32 @@ class LoggerSession(context: Context) {
     fun startCsvCollection(resumeFileName: String? = null): String? {
         csvCollectJob?.cancel()
 
+        val persistedFileName = if (LoggingStateStore.isActive(appContext)) {
+            LoggingStateStore.getCsvFileName(appContext)
+        } else {
+            null
+        }
+        val targetResumeFileName = resumeFileName ?: persistedFileName
+
         val file = when {
-            resumeFileName != null -> {
-                val resumed = csvLogger.resumeLogging(resumeFileName)
-                csvLogger.currentFile()?.let { activeTrackStore.restoreFromCsv(it) }
-                resumed
+            targetResumeFileName != null &&
+                (csvLogger.phase.value == RecordingPhase.Idle ||
+                    targetResumeFileName == csvLogger.currentFileName()) -> {
+                resumeFromPersistedFile(targetResumeFileName)
             }
             csvLogger.phase.value == RecordingPhase.Paused -> {
                 csvLogger.resumeWriting()
-                csvLogger.currentFile()
+                csvLogger.currentFile()?.also { file ->
+                    restoreTrackAndStatsFromFile(file.name)
+                }
             }
             csvLogger.phase.value == RecordingPhase.Idle -> {
-                activeTrackStore.clear()
-                csvLogger.startLogging()
+                if (LoggingStateStore.isActive(appContext)) {
+                    persistedFileName?.let { resumeFromPersistedFile(it) }
+                } else {
+                    activeTrackStore.clear()
+                    csvLogger.startLogging()
+                }
             }
             else -> csvLogger.currentFile()
         }
@@ -103,6 +121,7 @@ class LoggerSession(context: Context) {
 
     fun resumeCsvCollection() {
         if (csvLogger.phase.value != RecordingPhase.Paused) return
+        csvLogger.currentFileName()?.let { restoreTrackAndStatsFromFile(it) }
         csvLogger.resumeWriting()
         tripStatsTracker.resume(
             scope = scope,
@@ -140,6 +159,21 @@ class LoggerSession(context: Context) {
         locationTracker.release()
         csvLogger.release()
         scope.cancel()
+    }
+
+    private fun resumeFromPersistedFile(fileName: String): File? {
+        val file = csvLogger.resumeLogging(fileName) ?: return null
+        restoreTrackAndStatsFromFile(fileName)
+        return file
+    }
+
+    private fun restoreTrackAndStatsFromFile(fileName: String) {
+        val file = File(appContext.filesDir, fileName)
+        if (!file.exists()) return
+        activeTrackStore.restoreFromCsv(file)
+        parseTrackStartMillis(fileName)?.let { startedAtMillis ->
+            tripStatsTracker.restoreFromTrack(activeTrackStore.points.value, startedAtMillis)
+        }
     }
 
     private fun parseTrackStartMillis(fileName: String): Long? =

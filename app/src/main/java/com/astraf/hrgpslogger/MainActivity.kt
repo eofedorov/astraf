@@ -4,13 +4,16 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.PowerManager
 import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DirectionsBike
 import androidx.compose.material.icons.filled.History
@@ -28,12 +31,15 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.zIndex
 import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.astraf.hrgpslogger.RecordingPhase
 import com.astraf.hrgpslogger.ui.screens.RideScreen
-import com.astraf.hrgpslogger.ui.screens.StartScreen
+import com.astraf.hrgpslogger.ui.screens.SettingsScreen
 import com.astraf.hrgpslogger.ui.screens.TracksScreen
 import com.astraf.hrgpslogger.ui.theme.HrGpsLoggerTheme
 
@@ -41,6 +47,8 @@ class MainActivity : ComponentActivity() {
 
     private lateinit var session: LoggerSession
     private var permissionsGranted by mutableStateOf(false)
+    private var batteryOptimizationEnabled by mutableStateOf(false)
+    private var pendingBleScanAfterPermissions = false
 
     private val permissionLauncher =
         registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { result ->
@@ -48,6 +56,12 @@ class MainActivity : ComponentActivity() {
             if (permissionsGranted) {
                 session.ensureLocationTracking()
                 LoggingRecovery.startIfNeeded(this@MainActivity)
+                if (pendingBleScanAfterPermissions) {
+                    pendingBleScanAfterPermissions = false
+                    startPreferredBleScan()
+                }
+            } else {
+                pendingBleScanAfterPermissions = false
             }
         }
 
@@ -58,6 +72,7 @@ class MainActivity : ComponentActivity() {
 
         session = (application as HrGpsLoggerApp).session
         permissionsGranted = Permissions.hasAll(this)
+        refreshBatteryOptimizationState()
         if (permissionsGranted) {
             session.ensureLocationTracking()
             LoggingRecovery.startIfNeeded(this)
@@ -67,9 +82,10 @@ class MainActivity : ComponentActivity() {
             HrGpsLoggerTheme {
                 LoggerAppScreen(
                     permissionsGranted = permissionsGranted,
+                    showBatteryOptimizationButton = batteryOptimizationEnabled,
                     loggingPersisted = LoggingStateStore.isActive(this@MainActivity),
-                    onRequestPermissions = { requestPermissions() },
                     session = session,
+                    onScanBle = { onScanBleClicked() },
                     onStartLogging = { startBackgroundLogging() },
                     onPauseLogging = { pauseBackgroundLogging() },
                     onResumeLogging = { resumeBackgroundLogging() },
@@ -84,6 +100,7 @@ class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         LockScreenHelper.enable(this)
+        refreshBatteryOptimizationState()
     }
 
     override fun onDestroy() {
@@ -93,8 +110,26 @@ class MainActivity : ComponentActivity() {
         super.onDestroy()
     }
 
-    private fun requestPermissions() {
-        permissionLauncher.launch(Permissions.requiredRuntimePermissions())
+    private fun onScanBleClicked() {
+        if (!Permissions.hasAll(this)) {
+            pendingBleScanAfterPermissions = true
+            permissionLauncher.launch(Permissions.requiredRuntimePermissions())
+            return
+        }
+        startPreferredBleScan()
+    }
+
+    private fun startPreferredBleScan() {
+        session.bleClient.scanAndConnectToPreferredDevice()
+    }
+
+    private fun refreshBatteryOptimizationState() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) {
+            batteryOptimizationEnabled = false
+            return
+        }
+        val powerManager = getSystemService(POWER_SERVICE) as PowerManager
+        batteryOptimizationEnabled = !powerManager.isIgnoringBatteryOptimizations(packageName)
     }
 
     private fun startBackgroundLogging() {
@@ -140,7 +175,7 @@ class MainActivity : ComponentActivity() {
 }
 
 private enum class AppTab {
-    Start,
+    Settings,
     Ride,
     Tracks,
 }
@@ -148,9 +183,10 @@ private enum class AppTab {
 @Composable
 private fun LoggerAppScreen(
     permissionsGranted: Boolean,
+    showBatteryOptimizationButton: Boolean,
     loggingPersisted: Boolean,
-    onRequestPermissions: () -> Unit,
     session: LoggerSession,
+    onScanBle: () -> Unit,
     onStartLogging: () -> Unit,
     onPauseLogging: () -> Unit,
     onResumeLogging: () -> Unit,
@@ -159,19 +195,22 @@ private fun LoggerAppScreen(
     onOpenBatterySettings: () -> Unit,
 ) {
     val recordingPhase by session.csvLogger.phase.collectAsStateWithLifecycle()
-    val hasActiveSession = recordingPhase != RecordingPhase.Idle
 
     var selectedTab by rememberSaveable {
-        mutableStateOf(if (loggingPersisted) AppTab.Ride else AppTab.Start)
+        mutableStateOf(if (loggingPersisted) AppTab.Ride else AppTab.Settings)
     }
 
     val context = LocalContext.current
-    LaunchedEffect(loggingPersisted) {
-        if (loggingPersisted &&
-            LoggingStateStore.isPaused(context) &&
-            recordingPhase == RecordingPhase.Idle
-        ) {
-            onRestorePausedSession()
+    LaunchedEffect(loggingPersisted, recordingPhase) {
+        if (!loggingPersisted) return@LaunchedEffect
+        val fileName = LoggingStateStore.getCsvFileName(context) ?: return@LaunchedEffect
+        when {
+            LoggingStateStore.isPaused(context) && recordingPhase == RecordingPhase.Idle -> {
+                onRestorePausedSession()
+            }
+            !LoggingStateStore.isPaused(context) -> {
+                session.ensureTrackLoadedFromFile(fileName)
+            }
         }
     }
 
@@ -199,8 +238,8 @@ private fun LoggerAppScreen(
         bottomBar = {
             NavigationBar {
                 NavigationBarItem(
-                    selected = selectedTab == AppTab.Start,
-                    onClick = { selectedTab = AppTab.Start },
+                    selected = selectedTab == AppTab.Settings,
+                    onClick = { selectedTab = AppTab.Settings },
                     icon = { Icon(Icons.Default.Settings, contentDescription = null) },
                     label = { Text(stringResource(R.string.tab_start)) },
                 )
@@ -223,36 +262,52 @@ private fun LoggerAppScreen(
             .fillMaxSize()
             .padding(padding)
 
-        when (selectedTab) {
-            AppTab.Start -> StartScreen(
-                permissionsGranted = permissionsGranted,
+        Box(modifier = contentModifier) {
+            SettingsScreen(
                 session = session,
-                hasActiveSession = hasActiveSession,
-                onRequestPermissions = onRequestPermissions,
-                onStartLogging = {
-                    onStartLogging()
-                    selectedTab = AppTab.Ride
-                },
+                showBatteryOptimizationButton = showBatteryOptimizationButton,
+                onScan = onScanBle,
                 onOpenBatterySettings = onOpenBatterySettings,
-                modifier = contentModifier,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .tabPanelVisible(selectedTab == AppTab.Settings)
+                    .tabZIndex(selectedTab == AppTab.Settings),
             )
-            AppTab.Ride -> RideScreen(
+            RideScreen(
                 session = session,
                 recordingPhase = recordingPhase,
                 loggingPersisted = loggingPersisted,
                 isMapActive = selectedTab == AppTab.Ride,
-                onStartLogging = {
-                    onStartLogging()
-                },
+                onStartLogging = onStartLogging,
                 onPauseLogging = onPauseLogging,
                 onResumeLogging = onResumeLogging,
                 onFinishLogging = onFinishLogging,
-                modifier = contentModifier,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .tabPanelVisible(selectedTab == AppTab.Ride)
+                    .tabZIndex(selectedTab == AppTab.Ride),
             )
-            AppTab.Tracks -> TracksScreen(
+            TracksScreen(
                 session = session,
-                modifier = contentModifier,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .tabPanelVisible(selectedTab == AppTab.Tracks)
+                    .tabZIndex(selectedTab == AppTab.Tracks),
             )
         }
     }
 }
+
+private fun Modifier.tabPanelVisible(visible: Boolean): Modifier =
+    if (visible) {
+        this
+    } else {
+        then(
+            Modifier
+                .size(0.dp)
+                .alpha(0f),
+        )
+    }
+
+private fun Modifier.tabZIndex(selected: Boolean): Modifier =
+    zIndex(if (selected) 1f else 0f)

@@ -41,8 +41,8 @@ class CsvLogger(private val context: Context) {
 
     fun resumeLogging(fileName: String): File? {
         val file = File(context.filesDir, fileName)
-        if (!file.exists() || file.length() == 0L) {
-            return startLogging()
+        if (!file.exists()) {
+            return null
         }
         writer = BufferedWriter(
             OutputStreamWriter(FileOutputStream(file, true), StandardCharsets.UTF_8),

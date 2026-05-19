@@ -45,6 +45,24 @@ class TripStatsTracker {
         )
     }
 
+    fun restoreFromTrack(points: List<GeoPoint>, startedAtMillis: Long) {
+        this.startedAtMillis = startedAtMillis
+        lastLocation = null
+        totalDistanceMeters = 0.0
+        maxSpeedKmh = 0f
+        pausedDurationMillis = 0L
+        pauseStartedAtMillis = null
+        for (index in 1 until points.size) {
+            totalDistanceMeters += distanceMeters(points[index - 1], points[index])
+        }
+        _stats.value = TripStats(
+            startedAtMillis = startedAtMillis,
+            durationMillis = elapsedMillis(),
+            distanceMeters = totalDistanceMeters,
+            maxSpeedKmh = maxSpeedKmh,
+        )
+    }
+
     fun ensureStarted(
         scope: CoroutineScope,
         locationFlow: StateFlow<LocationSample?>,
@@ -187,10 +205,21 @@ class TripStatsTracker {
         )
     }
 
-    private fun distanceMeters(a: LocationSample, b: LocationSample): Double {
-        val latMidRad = Math.toRadians((a.latitude + b.latitude) * 0.5)
-        val dLon = Math.toRadians(b.longitude - a.longitude)
-        val dLat = Math.toRadians(b.latitude - a.latitude)
+    private fun distanceMeters(a: LocationSample, b: LocationSample): Double =
+        distanceMeters(a.latitude, a.longitude, b.latitude, b.longitude)
+
+    private fun distanceMeters(a: GeoPoint, b: GeoPoint): Double =
+        distanceMeters(a.latitude, a.longitude, b.latitude, b.longitude)
+
+    private fun distanceMeters(
+        latA: Double,
+        lonA: Double,
+        latB: Double,
+        lonB: Double,
+    ): Double {
+        val latMidRad = Math.toRadians((latA + latB) * 0.5)
+        val dLon = Math.toRadians(lonB - lonA)
+        val dLat = Math.toRadians(latB - latA)
         val dx = dLon * cos(latMidRad) * EARTH_RADIUS_M
         val dy = dLat * EARTH_RADIUS_M
         return sqrt(dx * dx + dy * dy)

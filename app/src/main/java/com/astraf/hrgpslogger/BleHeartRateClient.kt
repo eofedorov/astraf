@@ -16,15 +16,11 @@ import android.content.Context
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
+import android.util.Log
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import java.util.UUID
-
-data class ScannedDevice(
-    val address: String,
-    val name: String,
-)
 
 enum class BleConnectionState {
     DISCONNECTED,
@@ -41,9 +37,6 @@ class BleHeartRateClient(context: Context) {
     private val bluetoothAdapter: BluetoothAdapter? = bluetoothManager.adapter
     private val mainHandler = Handler(Looper.getMainLooper())
 
-    private val _devices = MutableStateFlow<List<ScannedDevice>>(emptyList())
-    val devices: StateFlow<List<ScannedDevice>> = _devices.asStateFlow()
-
     private val _connectionState = MutableStateFlow(BleConnectionState.DISCONNECTED)
     val connectionState: StateFlow<BleConnectionState> = _connectionState.asStateFlow()
 
@@ -58,22 +51,21 @@ class BleHeartRateClient(context: Context) {
 
     private var bluetoothGatt: BluetoothGatt? = null
     private var isScanning = false
-    private val discovered = linkedMapOf<String, ScannedDevice>()
+    private var autoConnectScan = false
+    private val scanTimeoutRunnable = Runnable { stopScanInternal(notifyNotFound = true) }
 
     @SuppressLint("MissingPermission")
     private val scanCallback = object : ScanCallback() {
         override fun onScanResult(callbackType: Int, result: ScanResult) {
-            val device = result.device ?: return
-            val address = device.address ?: return
-            val name = device.name?.takeIf { it.isNotBlank() }
-                ?: result.scanRecord?.deviceName?.takeIf { it.isNotBlank() }
-                ?: address
-            discovered[address] = ScannedDevice(address = address, name = name)
-            _devices.value = discovered.values.sortedBy { it.name.lowercase() }
+            val address = result.device?.address ?: return
+            if (!autoConnectScan) return
+            if (!address.equals(TARGET_DEVICE_ADDRESS, ignoreCase = true)) return
+            connect(address)
         }
 
         override fun onScanFailed(errorCode: Int) {
             isScanning = false
+            autoConnectScan = false
             _statusMessage.value = "Ошибка сканирования BLE: $errorCode"
         }
     }
@@ -164,34 +156,68 @@ class BleHeartRateClient(context: Context) {
     fun isBluetoothAvailable(): Boolean = bluetoothAdapter?.isEnabled == true
 
     @SuppressLint("MissingPermission")
-    fun startScan() {
+    fun scanAndConnectToPreferredDevice() {
         val adapter = bluetoothAdapter
         if (adapter == null || !adapter.isEnabled) {
             _statusMessage.value = "Bluetooth выключен или недоступен"
             return
         }
-        if (isScanning) return
-        discovered.clear()
-        _devices.value = emptyList()
+        when (_connectionState.value) {
+            BleConnectionState.CONNECTING,
+            BleConnectionState.CONNECTED,
+            BleConnectionState.READY,
+            -> {
+                _statusMessage.value = "Уже подключено"
+                return
+            }
+            BleConnectionState.DISCONNECTED -> Unit
+        }
+        if (isScanning) {
+            stopScanInternal(notifyNotFound = false)
+        }
+        autoConnectScan = true
         isScanning = true
-        _statusMessage.value = "Сканирование BLE..."
+        _statusMessage.value = "Поиск пульсометра $TARGET_DEVICE_ADDRESS..."
         val settings = ScanSettings.Builder()
             .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
             .build()
-        adapter.bluetoothLeScanner.startScan(null, settings, scanCallback)
+        try {
+            // Фильтр по MAC не работает для непарных устройств (Android 8+).
+            // Адрес проверяем в onScanResult.
+            adapter.bluetoothLeScanner.startScan(null, settings, scanCallback)
+            mainHandler.removeCallbacks(scanTimeoutRunnable)
+            mainHandler.postDelayed(scanTimeoutRunnable, SCAN_TIMEOUT_MS)
+        } catch (securityException: SecurityException) {
+            Log.e(TAG, "BLE scan permission denied", securityException)
+            isScanning = false
+            autoConnectScan = false
+            _statusMessage.value = "Нет разрешения Bluetooth"
+        }
     }
 
     @SuppressLint("MissingPermission")
-    fun stopScan() {
+    private fun stopScanInternal(notifyNotFound: Boolean) {
+        mainHandler.removeCallbacks(scanTimeoutRunnable)
         if (!isScanning) return
-        bluetoothAdapter?.bluetoothLeScanner?.stopScan(scanCallback)
+        try {
+            bluetoothAdapter?.bluetoothLeScanner?.stopScan(scanCallback)
+        } catch (securityException: SecurityException) {
+            Log.e(TAG, "BLE stop scan permission denied", securityException)
+        }
         isScanning = false
-        _statusMessage.value = "Сканирование остановлено"
+        val wasAutoConnect = autoConnectScan
+        autoConnectScan = false
+        if (notifyNotFound &&
+            wasAutoConnect &&
+            _connectionState.value == BleConnectionState.DISCONNECTED
+        ) {
+            _statusMessage.value = "Пульсометр не найден"
+        }
     }
 
     @SuppressLint("MissingPermission")
     fun connect(address: String) {
-        stopScan()
+        stopScanInternal(notifyNotFound = false)
         val adapter = bluetoothAdapter
         if (adapter == null || !adapter.isEnabled) {
             _statusMessage.value = "Bluetooth недоступен"
@@ -207,7 +233,7 @@ class BleHeartRateClient(context: Context) {
 
     @SuppressLint("MissingPermission")
     fun disconnect() {
-        stopScan()
+        stopScanInternal(notifyNotFound = false)
         bluetoothGatt?.let { gatt ->
             gatt.disconnect()
             gatt.close()
@@ -229,6 +255,10 @@ class BleHeartRateClient(context: Context) {
     }
 
     companion object {
+        private const val TAG = "BleHeartRateClient"
+        private const val SCAN_TIMEOUT_MS = 30_000L
+        const val TARGET_DEVICE_ADDRESS = "D6:64:A3:24:46:8D"
+
         val HEART_RATE_SERVICE_UUID: UUID =
             UUID.fromString("0000180d-0000-1000-8000-00805f9b34fb")
         val HEART_RATE_MEASUREMENT_UUID: UUID =

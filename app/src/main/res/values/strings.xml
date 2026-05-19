@@ -15,7 +15,8 @@
     <string name="background_logging_hint">Запись продолжается в фоне. Не закрывайте приложение из списка недавних во время тренировки.</string>
     <string name="battery_optimization">Отключить оптимизацию батареи</string>
 
-    <string name="tab_start">Старт</string>
+    <string name="tab_start">Настройки</string>
+    <string name="settings_screen_title">Настройки</string>
     <string name="tab_ride">Поездка</string>
     <string name="tab_tracks">Треки</string>
 
@@ -42,7 +43,7 @@
     <string name="map_recenter">Центрировать на моей позиции</string>
 
     <string name="ride_screen_title">Поездка</string>
-    <string name="ride_not_active">Запись не активна. Начните запись на вкладке «Старт».</string>
+    <string name="ride_not_active">Запись не активна. Начните запись на вкладке «Поездка».</string>
     <string name="background_active">Фон: активен (экран может быть выключен)</string>
     <string name="background_recovering">Запись восстанавливается…</string>
     <string name="csv_file">CSV</string>

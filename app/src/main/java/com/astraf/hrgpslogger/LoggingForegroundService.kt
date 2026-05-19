@@ -37,16 +37,28 @@ class LoggingForegroundService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
-            ACTION_STOP -> {
+            ACTION_STOP, ACTION_FINISH -> {
                 stopLoggingAndSelf()
                 return START_NOT_STICKY
             }
+            ACTION_PAUSE -> {
+                pauseLogging()
+                return START_STICKY
+            }
+            ACTION_RESUME_SESSION -> {
+                resumeLogging()
+                return START_STICKY
+            }
         }
 
-        val resume = intent?.action == ACTION_RESUME ||
-            (intent == null && LoggingStateStore.isActive(this))
+        val recoveryResume = intent?.action == ACTION_RESUME ||
+            (intent == null && LoggingStateStore.isActive(this) && !LoggingStateStore.isPaused(this))
 
-        startLogging(resume)
+        if (recoveryResume) {
+            startLogging(resume = true)
+        } else if (!isRunning) {
+            startLogging(resume = false)
+        }
         return START_STICKY
     }
 
@@ -61,7 +73,7 @@ class LoggingForegroundService : Service() {
     }
 
     private fun startLogging(resume: Boolean) {
-        if (isRunning && session.csvLogger.isLogging.value) return
+        if (isRunning && session.csvLogger.phase.value == RecordingPhase.Recording) return
 
         acquireWakeLock()
         session.ensureLocationTracking()
@@ -81,17 +93,50 @@ class LoggingForegroundService : Service() {
                 this,
                 csvFileName = csvFileName,
                 bleAddress = session.bleClient.connectedDeviceAddress.value,
+                paused = false,
             )
         }
 
-        session.persistLoggingState()
+        session.persistLoggingState(paused = false)
         isRunning = true
+        promoteForeground(recovering = resume)
+        startNotificationUpdates(recovering = resume)
+    }
 
+    private fun pauseLogging() {
+        if (session.csvLogger.phase.value != RecordingPhase.Recording) return
+        session.pauseCsvCollection()
+        updateNotification(paused = true)
+    }
+
+    private fun resumeLogging() {
+        if (session.csvLogger.phase.value != RecordingPhase.Paused) return
+        session.ensureLocationTracking()
+        session.resumeCsvCollection()
+        session.persistLoggingState(paused = false)
+        isRunning = true
+        promoteForeground(recovering = false)
+        startNotificationUpdates(recovering = false)
+    }
+
+    private fun stopLoggingAndSelf() {
+        notificationUpdateJob?.cancel()
+        notificationUpdateJob = null
+        session.stopCsvCollection()
+        LoggingStateStore.clear(this)
+        releaseWakeLock()
+        ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
+        isRunning = false
+        stopSelf()
+    }
+
+    private fun promoteForeground(recovering: Boolean) {
         val notification = buildNotification(
             bpm = session.bleClient.heartRateBpm.value,
             location = session.locationTracker.location.value,
             speedKmh = session.locationTracker.speedKmh.value,
-            recovering = resume,
+            recovering = recovering,
+            paused = false,
         )
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             val type = ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION or
@@ -105,33 +150,44 @@ class LoggingForegroundService : Service() {
         } else {
             startForeground(NOTIFICATION_ID, notification)
         }
+    }
 
+    private fun startNotificationUpdates(recovering: Boolean) {
         notificationUpdateJob?.cancel()
         notificationUpdateJob = combine(
             session.bleClient.heartRateBpm,
             session.locationTracker.location,
             session.locationTracker.speedKmh,
-        ) { bpm, location, speedKmh -> Triple(bpm, location, speedKmh) }
-            .onEach { (bpm, location, speedKmh) ->
-                session.persistLoggingState()
-                val manager = getSystemService(NotificationManager::class.java)
-                manager.notify(
-                    NOTIFICATION_ID,
-                    buildNotification(bpm, location, speedKmh, recovering = false),
+            session.csvLogger.phase,
+        ) { bpm, location, speedKmh, phase -> Triple(bpm, location, speedKmh) to phase }
+            .onEach { (data, phase) ->
+                val (bpm, location, speedKmh) = data
+                if (phase == RecordingPhase.Recording) {
+                    session.persistLoggingState(paused = false)
+                }
+                updateNotification(
+                    bpm = bpm,
+                    location = location,
+                    speedKmh = speedKmh,
+                    recovering = recovering,
+                    paused = phase == RecordingPhase.Paused,
                 )
             }
             .launchIn(serviceScope)
     }
 
-    private fun stopLoggingAndSelf() {
-        notificationUpdateJob?.cancel()
-        notificationUpdateJob = null
-        session.stopCsvCollection()
-        LoggingStateStore.clear(this)
-        releaseWakeLock()
-        ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
-        isRunning = false
-        stopSelf()
+    private fun updateNotification(
+        bpm: Int? = session.bleClient.heartRateBpm.value,
+        location: LocationSample? = session.locationTracker.location.value,
+        speedKmh: Float? = session.locationTracker.speedKmh.value,
+        recovering: Boolean = false,
+        paused: Boolean = session.csvLogger.phase.value == RecordingPhase.Paused,
+    ) {
+        val manager = getSystemService(NotificationManager::class.java)
+        manager.notify(
+            NOTIFICATION_ID,
+            buildNotification(bpm, location, speedKmh, recovering, paused),
+        )
     }
 
     private fun acquireWakeLock() {
@@ -171,6 +227,7 @@ class LoggingForegroundService : Service() {
         location: LocationSample?,
         speedKmh: Float?,
         recovering: Boolean = false,
+        paused: Boolean = false,
     ): Notification {
         val bpmText = bpm?.let { getString(R.string.notification_bpm, it) }
             ?: getString(R.string.notification_bpm_unknown)
@@ -184,10 +241,10 @@ class LoggingForegroundService : Service() {
         val speedText = speedKmh?.let { getString(R.string.notification_speed, it) }
             ?: getString(R.string.notification_speed_unknown)
 
-        val title = if (recovering) {
-            getString(R.string.notification_title_recovering)
-        } else {
-            getString(R.string.notification_title)
+        val title = when {
+            recovering -> getString(R.string.notification_title_recovering)
+            paused -> getString(R.string.notification_title_paused)
+            else -> getString(R.string.notification_title)
         }
 
         val openAppIntent = PendingIntent.getActivity(
@@ -199,7 +256,7 @@ class LoggingForegroundService : Service() {
         val stopIntent = PendingIntent.getService(
             this,
             1,
-            Intent(this, LoggingForegroundService::class.java).apply { action = ACTION_STOP },
+            Intent(this, LoggingForegroundService::class.java).apply { action = ACTION_FINISH },
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
 
@@ -219,6 +276,9 @@ class LoggingForegroundService : Service() {
 
     companion object {
         const val ACTION_STOP = "com.astraf.hrgpslogger.action.STOP_LOGGING"
+        const val ACTION_FINISH = "com.astraf.hrgpslogger.action.FINISH_LOGGING"
+        const val ACTION_PAUSE = "com.astraf.hrgpslogger.action.PAUSE_LOGGING"
+        const val ACTION_RESUME_SESSION = "com.astraf.hrgpslogger.action.RESUME_SESSION"
         const val ACTION_RESUME = "com.astraf.hrgpslogger.action.RESUME_LOGGING"
 
         private const val CHANNEL_ID = "logging_channel"
@@ -240,10 +300,29 @@ class LoggingForegroundService : Service() {
             }
         }
 
+        fun pause(context: Context) {
+            context.startService(
+                Intent(context, LoggingForegroundService::class.java).apply {
+                    action = ACTION_PAUSE
+                },
+            )
+        }
+
+        fun resumeSession(context: Context) {
+            val intent = Intent(context, LoggingForegroundService::class.java).apply {
+                action = ACTION_RESUME_SESSION
+            }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                context.startForegroundService(intent)
+            } else {
+                context.startService(intent)
+            }
+        }
+
         fun stop(context: Context) {
             context.startService(
                 Intent(context, LoggingForegroundService::class.java).apply {
-                    action = ACTION_STOP
+                    action = ACTION_FINISH
                 },
             )
         }

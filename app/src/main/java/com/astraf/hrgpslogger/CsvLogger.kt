@@ -15,6 +15,9 @@ import java.time.format.DateTimeFormatter
 
 class CsvLogger(private val context: Context) {
 
+    private val _phase = MutableStateFlow(RecordingPhase.Idle)
+    val phase: StateFlow<RecordingPhase> = _phase.asStateFlow()
+
     private val _isLogging = MutableStateFlow(false)
     val isLogging: StateFlow<Boolean> = _isLogging.asStateFlow()
 
@@ -28,7 +31,7 @@ class CsvLogger(private val context: Context) {
     private val isoFormatter = DateTimeFormatter.ISO_INSTANT
 
     fun startLogging(): File? {
-        if (_isLogging.value) return currentFile()
+        if (_phase.value != RecordingPhase.Idle) return currentFile()
 
         val fileName = "hr_gps_${System.currentTimeMillis()}.csv"
         val file = File(context.filesDir, fileName)
@@ -47,11 +50,14 @@ class CsvLogger(private val context: Context) {
         lastBpm = null
         lastLocation = null
         _isLogging.value = true
+        _phase.value = RecordingPhase.Recording
         _currentFilePath.value = file.absolutePath
         return file
     }
 
     fun currentFileName(): String? = currentFile()?.name
+
+    fun hasActiveSession(): Boolean = _phase.value != RecordingPhase.Idle
 
     private fun openNewFile(file: File) {
         val output = BufferedWriter(
@@ -63,11 +69,48 @@ class CsvLogger(private val context: Context) {
         lastBpm = null
         lastLocation = null
         _isLogging.value = true
+        _phase.value = RecordingPhase.Recording
         _currentFilePath.value = file.absolutePath
     }
 
-    fun stopLogging() {
-        if (!_isLogging.value) return
+    fun restorePausedSession(fileName: String) {
+        val file = File(context.filesDir, fileName)
+        if (!file.exists()) return
+        closeWriter()
+        lastBpm = null
+        lastLocation = null
+        _isLogging.value = false
+        _phase.value = RecordingPhase.Paused
+        _currentFilePath.value = file.absolutePath
+    }
+
+    fun pauseLogging() {
+        if (_phase.value != RecordingPhase.Recording) return
+        closeWriter()
+        _isLogging.value = false
+        _phase.value = RecordingPhase.Paused
+    }
+
+    fun resumeWriting() {
+        if (_phase.value != RecordingPhase.Paused) return
+        val file = currentFile() ?: return
+        writer = BufferedWriter(
+            OutputStreamWriter(FileOutputStream(file, true), StandardCharsets.UTF_8),
+        )
+        _isLogging.value = true
+        _phase.value = RecordingPhase.Recording
+    }
+
+    fun finishLogging() {
+        closeWriter()
+        lastBpm = null
+        lastLocation = null
+        _isLogging.value = false
+        _phase.value = RecordingPhase.Idle
+        _currentFilePath.value = null
+    }
+
+    private fun closeWriter() {
         try {
             writer?.flush()
             writer?.close()
@@ -75,8 +118,11 @@ class CsvLogger(private val context: Context) {
             // ignore close errors
         } finally {
             writer = null
-            _isLogging.value = false
         }
+    }
+
+    fun stopLogging() {
+        finishLogging()
     }
 
     fun writeIfChanged(bpm: Int?, location: LocationSample?) {

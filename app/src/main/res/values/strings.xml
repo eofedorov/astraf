@@ -14,4 +14,50 @@
     <string name="notification_stop">Остановить</string>
     <string name="background_logging_hint">Запись продолжается в фоне. Не закрывайте приложение из списка недавних во время тренировки.</string>
     <string name="battery_optimization">Отключить оптимизацию батареи</string>
+
+    <string name="tab_start">Старт</string>
+    <string name="tab_ride">Поездка</string>
+    <string name="tab_tracks">Треки</string>
+
+    <string name="permissions_required">Нужны разрешения Bluetooth, геолокации и уведомлений.</string>
+    <string name="grant_permissions">Выдать разрешения</string>
+    <string name="ble_status">BLE</string>
+    <string name="connection_status">Подключение</string>
+    <string name="scan">Сканировать</string>
+    <string name="connect">Подключить</string>
+    <string name="disconnect">Отключить</string>
+    <string name="start_logging">Начать запись</string>
+    <string name="stop_logging">Остановить запись</string>
+    <string name="pause_logging">Пауза</string>
+    <string name="resume_logging">Возобновить</string>
+    <string name="finish_logging">Завершить</string>
+    <string name="recording_paused">Запись на паузе</string>
+    <string name="finish_dialog_title">Завершить запись?</string>
+    <string name="finish_dialog_message">Трек будет сохранён. Продолжить запись будет нельзя.</string>
+    <string name="finish_dialog_confirm">Завершить</string>
+    <string name="finish_dialog_cancel">Отмена</string>
+    <string name="notification_title_paused">Запись на паузе</string>
+    <string name="found_devices">Найденные устройства</string>
+
+    <string name="map_recenter">Центрировать на моей позиции</string>
+
+    <string name="ride_screen_title">Поездка</string>
+    <string name="ride_not_active">Запись не активна. Начните запись на вкладке «Старт».</string>
+    <string name="background_active">Фон: активен (экран может быть выключен)</string>
+    <string name="background_recovering">Запись восстанавливается…</string>
+    <string name="csv_file">CSV</string>
+
+    <string name="metric_duration">Длительность записи</string>
+    <string name="metric_heart_rate">Текущий пульс</string>
+    <string name="metric_current_speed">Текущая скорость</string>
+    <string name="metric_average_speed">Средняя скорость</string>
+    <string name="metric_current_time">Текущее время</string>
+    <string name="metric_max_speed">Максимальная скорость</string>
+    <string name="metric_distance">Пройденное расстояние</string>
+    <string name="bpm_unit">уд/мин</string>
+
+    <string name="tracks_screen_title">Записи</string>
+    <string name="tracks_empty">Сохранённых треков пока нет.</string>
+    <string name="track_recording_now">Идёт запись</string>
+    <string name="track_points">Точек: %1$d</string>
 </resources>

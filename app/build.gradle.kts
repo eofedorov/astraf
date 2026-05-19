@@ -11,7 +11,7 @@ android {
 
     defaultConfig {
         applicationId = "com.astraf.hrgpslogger"
-        minSdk = 26
+        minSdk = 36
         targetSdk = 36
         versionCode = 1
         versionName = "1.0"
@@ -50,9 +50,12 @@ dependencies {
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.fragment.ktx)
     implementation(platform(libs.androidx.compose.bom))
+    implementation(libs.androidx.compose.foundation)
     implementation(libs.androidx.compose.ui)
     implementation(libs.androidx.compose.ui.graphics)
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.compose.material3)
+    implementation(libs.androidx.compose.material.icons.extended)
     implementation(libs.play.services.location)
+    implementation(libs.maplibre.android.sdk.vulkan)
 }

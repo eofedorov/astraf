@@ -176,7 +176,7 @@ fun RideMetricsFullscreenGrid(
     cells: List<RideMetricCell>,
     modifier: Modifier = Modifier,
 ) {
-    require(cells.size == 7) { "Expected 7 metric cells" }
+    require(cells.isNotEmpty()) { "Expected at least one metric cell" }
     val rows = cells.chunked(2)
     Column(
         modifier = modifier

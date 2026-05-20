@@ -7,5 +7,6 @@ data class TrackSummary(
     val pointCount: Int,
     val durationMillis: Long?,
     val distanceMeters: Double?,
+    val totalClimbMeters: Float?,
     val isActive: Boolean,
 )

@@ -17,6 +17,7 @@ data class TripStats(
     val averageSpeedKmh: Float? = null,
     val maxSpeedKmh: Float = 0f,
     val distanceMeters: Double = 0.0,
+    val totalClimbMeters: Float? = null,
 )
 
 class TripStatsTracker {
@@ -34,6 +35,7 @@ class TripStatsTracker {
     private var pauseStartedAtMillis: Long? = null
     private var waitingGpsDurationMillis: Long = 0L
     private var waitingGpsStartedAtMillis: Long? = null
+    private var totalClimbMeters: Float? = null
 
     fun restorePausedAnchor(startedAtMillis: Long) {
         this.startedAtMillis = startedAtMillis
@@ -76,6 +78,11 @@ class TripStatsTracker {
         publishStats(currentSpeedKmh = currentSpeedKmh)
     }
 
+    fun updateTotalClimbMeters(meters: Float?) {
+        totalClimbMeters = meters
+        publishStats(currentSpeedKmh = _stats.value.currentSpeedKmh)
+    }
+
     fun pause() {
         pauseStartedAtMillis?.let { return }
         pauseStartedAtMillis = System.currentTimeMillis()
@@ -114,6 +121,7 @@ class TripStatsTracker {
         maxSpeedKmh = 0f
         pausedDurationMillis = 0L
         waitingGpsDurationMillis = 0L
+        totalClimbMeters = null
     }
 
     private fun onAcceptedPointInternal(
@@ -165,6 +173,7 @@ class TripStatsTracker {
             averageSpeedKmh = averageSpeed?.takeIf { it > 0f },
             maxSpeedKmh = maxSpeedKmh,
             distanceMeters = totalDistanceMeters,
+            totalClimbMeters = totalClimbMeters,
         )
     }
 

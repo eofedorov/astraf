@@ -23,6 +23,7 @@ class LoggerSession(context: Context) {
     val locationTracker = LocationTracker(appContext)
     val csvLogger = CsvLogger(appContext)
     val tripStatsTracker = TripStatsTracker()
+    val elevationClimbTracker = ElevationClimbTracker()
     val activeTrackStore = ActiveTrackStore()
     val gpsRideController = GpsRideController()
 
@@ -132,6 +133,7 @@ class LoggerSession(context: Context) {
             RecordingPhase.WaitingForGps -> {
                 csvLogger.finishLogging()
                 tripStatsTracker.reset()
+                elevationClimbTracker.reset()
                 gpsRideController.reset()
                 LoggingStateStore.clear(appContext)
             }
@@ -164,8 +166,10 @@ class LoggerSession(context: Context) {
         speedPolicyJob = null
         stationarySinceElapsed = null
         movingSinceElapsed = null
+        csvLogger.currentFileName()?.let { saveTrackMetadata(it) }
         tripStatsTracker.stop()
         tripStatsTracker.reset()
+        elevationClimbTracker.reset()
         activeTrackStore.clear()
         gpsRideController.reset()
         csvLogger.finishLogging()
@@ -286,6 +290,7 @@ class LoggerSession(context: Context) {
         activeTrackStore.clear()
         gpsRideController.beginWaitingForFirstFix()
         tripStatsTracker.reset()
+        elevationClimbTracker.reset()
         tripStatsTracker.beginWaitingForGps()
         csvLogger.beginWaitingForGps()
     }
@@ -303,9 +308,11 @@ class LoggerSession(context: Context) {
         if (!file.exists()) return
         val points = TrackCsvParser.parseAcceptedPoints(file)
         activeTrackStore.restoreFromAcceptedPoints(points)
+        elevationClimbTracker.restoreFromAcceptedPoints(points)
         parseTrackStartMillis(fileName)?.let { startedAtMillis ->
             tripStatsTracker.restoreFromAcceptedPoints(points, startedAtMillis)
         }
+        syncTotalClimbToTripStats()
     }
 
     private fun parseTrackStartMillis(fileName: String): Long? =
@@ -344,6 +351,31 @@ class LoggerSession(context: Context) {
             point = result.point,
             newSegment = result.newSegment,
             currentSpeedKmh = gpsRideController.speedKmh.value,
+        )
+        elevationClimbTracker.onAcceptedPoint(result.point)
+        syncTotalClimbToTripStats()
+    }
+
+    private fun syncTotalClimbToTripStats() {
+        val climb = if (elevationClimbTracker.hasAltitudeData()) {
+            elevationClimbTracker.state.value.totalClimbMeters
+        } else {
+            null
+        }
+        tripStatsTracker.updateTotalClimbMeters(climb)
+    }
+
+    private fun saveTrackMetadata(csvFileName: String) {
+        if (!elevationClimbTracker.hasAltitudeData()) return
+        val debug = elevationClimbTracker.debugStats.value
+        TrackMetadataStore.save(
+            appContext,
+            csvFileName,
+            TrackMetadata(
+                totalClimbMeters = elevationClimbTracker.state.value.totalClimbMeters,
+                pointsWithAltitude = debug.pointsWithAltitude,
+                pointsWithoutAltitude = debug.pointsWithoutAltitude,
+            ),
         )
     }
 

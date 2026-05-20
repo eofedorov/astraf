@@ -7,6 +7,7 @@ data class AcceptedGpsPoint(
     val accuracyMeters: Float,
     val derivedSpeedKmh: Float?,
     val segmentId: Int,
+    val altitudeMeters: Double? = null,
 ) {
     fun toGeoPoint(): GeoPoint = GeoPoint(latitude, longitude)
 }

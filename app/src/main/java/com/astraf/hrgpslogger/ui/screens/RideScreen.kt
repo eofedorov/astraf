@@ -34,6 +34,8 @@ import com.astraf.hrgpslogger.ui.formatCurrentTime
 import com.astraf.hrgpslogger.ui.formatDistanceNumber
 import com.astraf.hrgpslogger.ui.formatDistanceUnit
 import com.astraf.hrgpslogger.ui.formatDuration
+import com.astraf.hrgpslogger.ui.formatElevationClimbNumber
+import com.astraf.hrgpslogger.ui.formatElevationClimbUnit
 import com.astraf.hrgpslogger.ui.formatSpeedKmhNumber
 import kotlinx.coroutines.delay
 
@@ -123,6 +125,11 @@ fun RideScreen(
             label = stringResource(R.string.metric_label_distance),
             number = formatDistanceNumber(tripStats.distanceMeters),
             unit = formatDistanceUnit(tripStats.distanceMeters),
+        ),
+        RideMetricCell(
+            label = stringResource(R.string.metric_label_elevation_gain),
+            number = formatElevationClimbNumber(tripStats.totalClimbMeters),
+            unit = formatElevationClimbUnit(tripStats.totalClimbMeters),
         ),
         RideMetricCell(
             label = stringResource(R.string.metric_label_current_time),

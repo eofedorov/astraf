@@ -36,6 +36,7 @@ import com.astraf.hrgpslogger.strava.StravaIntegration
 import com.astraf.hrgpslogger.strava.StravaUploadUiStatus
 import com.astraf.hrgpslogger.ui.formatDistanceMeters
 import com.astraf.hrgpslogger.ui.formatDuration
+import com.astraf.hrgpslogger.ui.formatElevationClimbMeters
 import com.astraf.hrgpslogger.ui.formatTrackDateTime
 import kotlinx.coroutines.launch
 
@@ -156,6 +157,10 @@ private fun TrackCard(
                     style = MaterialTheme.typography.bodySmall,
                 )
             }
+            Text(
+                text = "${stringResource(R.string.metric_elevation_gain)}: ${formatElevationClimbMeters(track.totalClimbMeters)}",
+                style = MaterialTheme.typography.bodySmall,
+            )
             if (!track.isActive && track.pointCount > 0) {
                 Spacer(modifier = Modifier.height(4.dp))
                 Button(

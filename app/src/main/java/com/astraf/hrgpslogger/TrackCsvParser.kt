@@ -24,7 +24,8 @@ object TrackCsvParser {
     fun parseSample(line: String): TrackCsvSample? {
         val point = parseAcceptedPoint(line) ?: return null
         val parts = line.split(',')
-        val bpm = parts.getOrNull(6)?.trim()?.toIntOrNull()
+        val bpmIndex = if (parts.size >= 8) 7 else 6
+        val bpm = parts.getOrNull(bpmIndex)?.trim()?.toIntOrNull()
         return TrackCsvSample(point = point, bpm = bpm)
     }
 
@@ -39,6 +40,7 @@ object TrackCsvParser {
         val lon = parts[3].toDoubleOrNull() ?: return null
         val accuracy = parts[4].toFloatOrNull() ?: return null
         val derivedSpeed = parts.getOrNull(5)?.toFloatOrNull()
+        val altitude = if (parts.size >= 8) parts[6].trim().toDoubleOrNull() else null
 
         return AcceptedGpsPoint(
             latitude = lat,
@@ -47,6 +49,7 @@ object TrackCsvParser {
             accuracyMeters = accuracy,
             derivedSpeedKmh = derivedSpeed,
             segmentId = segmentId,
+            altitudeMeters = altitude,
         )
     }
 

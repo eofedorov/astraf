@@ -150,6 +150,7 @@ class GpsTrackQualityProcessor(
             accuracyMeters = raw.accuracyMeters!!,
             derivedSpeedKmh = derivedSpeedKmh,
             segmentId = currentSegmentId,
+            altitudeMeters = raw.altitudeMeters,
         )
         lastAccepted = accepted
         stats = stats.copy(acceptedPointsCount = stats.acceptedPointsCount + 1)

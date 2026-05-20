@@ -150,6 +150,7 @@ class CsvLogger(private val context: Context) {
             point.longitude.toString(),
             point.accuracyMeters.toString(),
             point.derivedSpeedKmh?.toString().orEmpty(),
+            point.altitudeMeters?.toString().orEmpty(),
             bpm?.toString().orEmpty(),
         ).joinToString(",")
 
@@ -175,6 +176,6 @@ class CsvLogger(private val context: Context) {
 
     companion object {
         const val CSV_HEADER =
-            "gps_timestamp,segment_id,latitude,longitude,accuracy_m,derived_speed_kmh,bpm"
+            "gps_timestamp,segment_id,latitude,longitude,accuracy_m,derived_speed_kmh,altitude,bpm"
     }
 }

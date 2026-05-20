@@ -2,8 +2,6 @@ package com.astraf.hrgpslogger
 
 import android.content.Context
 import java.io.File
-import kotlin.math.max
-
 class TrackRepository(private val context: Context) {
 
     fun listTracks(activeFilePath: String?): List<TrackSummary> {
@@ -36,6 +34,7 @@ class TrackRepository(private val context: Context) {
                 pointCount = 0,
                 durationMillis = null,
                 distanceMeters = null,
+                totalClimbMeters = null,
                 isActive = false,
             )
         }
@@ -46,6 +45,7 @@ class TrackRepository(private val context: Context) {
         } else {
             null
         }
+        val totalClimbMeters = resolveTotalClimbMeters(file.name, points)
 
         return TrackSummary(
             fileName = file.name,
@@ -54,8 +54,17 @@ class TrackRepository(private val context: Context) {
             pointCount = points.size,
             durationMillis = duration,
             distanceMeters = if (points.size > 1) TrackCsvParser.distanceMeters(points) else null,
+            totalClimbMeters = totalClimbMeters,
             isActive = false,
         )
+    }
+
+    private fun resolveTotalClimbMeters(
+        fileName: String,
+        points: List<AcceptedGpsPoint>,
+    ): Float? {
+        TrackMetadataStore.load(context, fileName)?.let { return it.totalClimbMeters }
+        return ElevationClimbTracker.computeTotalClimbMeters(points)
     }
 
     companion object {

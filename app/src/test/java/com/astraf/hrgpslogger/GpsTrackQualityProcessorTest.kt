@@ -16,6 +16,15 @@ class GpsTrackQualityProcessorTest {
     }
 
     @Test
+    fun accept_passesAltitudeToAcceptedPoint() {
+        val result = processor.process(
+            raw(lat = 55.751, lon = 37.618, ts = 1_000L, accuracy = 10f, altitude = 123.5),
+        )
+        assertTrue(result is GpsFilterResult.Accepted)
+        assertEquals(123.5, (result as GpsFilterResult.Accepted).point.altitudeMeters!!, 0.01)
+    }
+
+    @Test
     fun normalRide_acceptsPointsAndAccumulatesDistance() {
         val points = listOf(
             raw(lat = 55.751, lon = 37.618, ts = 1_000L, accuracy = 10f),
@@ -130,10 +139,12 @@ class GpsTrackQualityProcessorTest {
         lon: Double,
         ts: Long,
         accuracy: Float?,
+        altitude: Double? = null,
     ): RawGpsPoint = RawGpsPoint(
         latitude = lat,
         longitude = lon,
         timestampMillis = ts,
         accuracyMeters = accuracy,
+        altitudeMeters = altitude,
     )
 }

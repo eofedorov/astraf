@@ -42,4 +42,32 @@ class TrackCsvParserTest {
         assertEquals(130, samples[0].bpm)
         assertEquals(131, samples[1].bpm)
     }
+
+    @Test
+    fun parseSample_readsAltitudeFromEighthColumnFormat() {
+        val line = "2024-01-15T10:00:00Z,0,55.751,37.618,10.0,12.5,105.3,142"
+        val sample = TrackCsvParser.parseSample(line)
+
+        assertNotNull(sample)
+        assertEquals(142, sample?.bpm)
+        assertEquals(105.3, sample?.point?.altitudeMeters ?: 0.0, 0.01)
+    }
+
+    @Test
+    fun parseSample_emptyAltitudeIsNull() {
+        val line = "2024-01-15T10:00:00Z,0,55.751,37.618,10.0,12.5,,142"
+        val sample = TrackCsvParser.parseSample(line)
+        assertNotNull(sample)
+        assertNull(sample?.point?.altitudeMeters)
+        assertEquals(142, sample?.bpm)
+    }
+
+    @Test
+    fun parseSample_legacySevenColumnFormat_hasNoAltitude() {
+        val line = "2024-01-15T10:00:00Z,0,55.751,37.618,10.0,12.5,142"
+        val sample = TrackCsvParser.parseSample(line)
+        assertNotNull(sample)
+        assertNull(sample?.point?.altitudeMeters)
+        assertEquals(142, sample?.bpm)
+    }
 }

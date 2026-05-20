@@ -1,5 +1,6 @@
 package com.astraf.hrgpslogger.ui
 
+import com.astraf.hrgpslogger.ElevationDebugStats
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -44,6 +45,15 @@ fun formatDistanceNumber(meters: Double): String =
 
 fun formatDistanceUnit(meters: Double): String =
     if (meters >= 1000.0) "км" else "м"
+
+fun formatElevationClimbNumber(meters: Float?): String =
+    meters?.roundToInt()?.toString() ?: "—"
+
+fun formatElevationClimbUnit(meters: Float?): String? =
+    meters?.let { "м" }
+
+fun formatElevationClimbMeters(meters: Float?): String =
+    meters?.let { "${it.roundToInt()} м" } ?: "—"
 
 fun formatCurrentTime(): String =
     timeFormatter.format(Instant.now().atZone(ZoneId.systemDefault()))
@@ -97,3 +107,10 @@ fun buildGpsDebugLine(
     rejected: Int,
     segments: Int,
 ): String = "GPS: $accepted/$raw acc, rej $rejected, seg $segments"
+
+fun buildElevationDebugLine(stats: ElevationDebugStats): String {
+    val climb = stats.totalClimbMeters.roundToInt()
+    val smoothed = stats.smoothedAltitude?.roundToInt()?.toString() ?: "—"
+    val raw = stats.rawAltitude?.roundToInt()?.toString() ?: "—"
+    return "Climb: ${climb}м, alt $raw→$smoothed, +${stats.pointsWithAltitude}/-${stats.pointsWithoutAltitude}, ign ${stats.ignoredSmallElevationChanges}"
+}

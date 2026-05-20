@@ -1,19 +1,10 @@
 package com.astraf.hrgpslogger.ui.screens
 
-import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -21,34 +12,32 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.astraf.hrgpslogger.LoggerSession
-import com.astraf.hrgpslogger.LoggingForegroundService
 import com.astraf.hrgpslogger.R
 import com.astraf.hrgpslogger.RecordingPhase
-import com.astraf.hrgpslogger.ui.components.MetricTile
+import com.astraf.hrgpslogger.ui.components.RideCompactMetricsBar
 import com.astraf.hrgpslogger.ui.components.RideMapView
+import com.astraf.hrgpslogger.ui.components.RideMetricCell
+import com.astraf.hrgpslogger.ui.components.RideMetricsFullscreenGrid
+import com.astraf.hrgpslogger.ui.components.RideRecordingControls
+import com.astraf.hrgpslogger.ui.buildRideCompactMetricsLine
 import com.astraf.hrgpslogger.ui.formatCurrentTime
-import com.astraf.hrgpslogger.ui.formatDistanceMeters
+import com.astraf.hrgpslogger.ui.formatDistanceNumber
+import com.astraf.hrgpslogger.ui.formatDistanceUnit
 import com.astraf.hrgpslogger.ui.formatDuration
 import com.astraf.hrgpslogger.ui.formatSpeedKmh
+import com.astraf.hrgpslogger.ui.formatSpeedKmhNumber
 import kotlinx.coroutines.delay
-
-private data class RideMetric(
-    val title: String,
-    val value: String,
-)
 
 @Composable
 fun RideScreen(
     session: LoggerSession,
     recordingPhase: RecordingPhase,
-    loggingPersisted: Boolean,
     isMapActive: Boolean,
     onStartLogging: () -> Unit,
     onPauseLogging: () -> Unit,
@@ -58,16 +47,16 @@ fun RideScreen(
 ) {
     val heartRate by session.bleClient.heartRateBpm.collectAsStateWithLifecycle()
     val tripStats by session.tripStatsTracker.stats.collectAsStateWithLifecycle()
-    val isBackgroundServiceRunning = LoggingForegroundService.isRunning
+
+    var mapCollapsed by rememberSaveable { mutableStateOf(false) }
+    val mapVisible = isMapActive && !mapCollapsed
 
     var currentTime by remember { mutableStateOf(formatCurrentTime()) }
-    val isRecording = recordingPhase == RecordingPhase.Recording
-    LaunchedEffect(isRecording) {
-        while (isRecording) {
+    LaunchedEffect(Unit) {
+        while (true) {
             currentTime = formatCurrentTime()
             delay(1_000)
         }
-        currentTime = formatCurrentTime()
     }
 
     var showFinishDialog by remember { mutableStateOf(false) }
@@ -95,147 +84,88 @@ fun RideScreen(
         )
     }
 
-    val metrics = listOf(
-        RideMetric(
-            title = stringResource(R.string.metric_duration),
-            value = formatDuration(tripStats.durationMillis),
+    val bpmUnit = stringResource(R.string.bpm_unit)
+    val speedUnit = "км/ч"
+    val fullscreenCells = listOf(
+        RideMetricCell(
+            label = stringResource(R.string.metric_label_duration),
+            number = formatDuration(tripStats.durationMillis),
         ),
-        RideMetric(
-            title = stringResource(R.string.metric_heart_rate),
-            value = heartRate?.let { "$it ${stringResource(R.string.bpm_unit)}" } ?: "—",
+        RideMetricCell(
+            label = stringResource(R.string.metric_label_heart_rate),
+            number = heartRate?.toString() ?: "—",
+            unit = heartRate?.let { bpmUnit },
         ),
-        RideMetric(
-            title = stringResource(R.string.metric_current_speed),
-            value = formatSpeedKmh(tripStats.currentSpeedKmh),
+        RideMetricCell(
+            label = stringResource(R.string.metric_label_current_speed),
+            number = formatSpeedKmhNumber(tripStats.currentSpeedKmh),
+            unit = tripStats.currentSpeedKmh?.let { speedUnit },
         ),
-        RideMetric(
-            title = stringResource(R.string.metric_average_speed),
-            value = formatSpeedKmh(tripStats.averageSpeedKmh),
+        RideMetricCell(
+            label = stringResource(R.string.metric_label_average_speed),
+            number = formatSpeedKmhNumber(tripStats.averageSpeedKmh),
+            unit = tripStats.averageSpeedKmh?.let { speedUnit },
         ),
-        RideMetric(
-            title = stringResource(R.string.metric_current_time),
-            value = currentTime,
+        RideMetricCell(
+            label = stringResource(R.string.metric_label_max_speed),
+            number = formatSpeedKmhNumber(tripStats.maxSpeedKmh.takeIf { it > 0f }),
+            unit = tripStats.maxSpeedKmh.takeIf { it > 0f }?.let { speedUnit },
         ),
-        RideMetric(
-            title = stringResource(R.string.metric_max_speed),
-            value = formatSpeedKmh(tripStats.maxSpeedKmh.takeIf { it > 0f }),
+        RideMetricCell(
+            label = stringResource(R.string.metric_label_distance),
+            number = formatDistanceNumber(tripStats.distanceMeters),
+            unit = formatDistanceUnit(tripStats.distanceMeters),
         ),
-        RideMetric(
-            title = stringResource(R.string.metric_distance),
-            value = formatDistanceMeters(tripStats.distanceMeters),
+        RideMetricCell(
+            label = stringResource(R.string.metric_label_current_time),
+            number = currentTime,
         ),
     )
 
+    val compactLine = buildRideCompactMetricsLine(
+        currentSpeedKmh = tripStats.currentSpeedKmh,
+        heartRateBpm = heartRate,
+        distanceMeters = tripStats.distanceMeters,
+        averageSpeedKmh = tripStats.averageSpeedKmh,
+        durationMillis = tripStats.durationMillis,
+    )
+
     Column(modifier = modifier.fillMaxSize()) {
-        RideMapView(
-            location = session.locationTracker.location,
-            trackPoints = session.activeTrackStore.points,
-            isMapActive = isMapActive,
+        Box(
             modifier = Modifier
-                .fillMaxWidth()
-                .weight(2f),
-        )
-
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
                 .weight(1f)
-                .padding(horizontal = 12.dp, vertical = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+                .fillMaxWidth(),
         ) {
-            Text(
-                text = stringResource(R.string.ride_screen_title),
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-            )
-
-            when (recordingPhase) {
-                RecordingPhase.Idle -> {
-                    Text(
-                        text = stringResource(R.string.ride_not_active),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+            when {
+                mapCollapsed -> {
+                    RideMetricsFullscreenGrid(
+                        cells = fullscreenCells,
+                        modifier = Modifier.fillMaxSize(),
                     )
                 }
-                RecordingPhase.Paused -> {
-                    Text(
-                        text = stringResource(R.string.recording_paused),
-                        color = MaterialTheme.colorScheme.primary,
-                        style = MaterialTheme.typography.bodySmall,
+                mapVisible -> {
+                    RideMapView(
+                        location = session.locationTracker.location,
+                        trackPoints = session.activeTrackStore.points,
+                        isMapActive = true,
+                        modifier = Modifier.fillMaxSize(),
                     )
-                }
-                RecordingPhase.Recording -> {
-                    when {
-                        isBackgroundServiceRunning -> {
-                            Text(
-                                text = stringResource(R.string.background_active),
-                                color = MaterialTheme.colorScheme.primary,
-                                style = MaterialTheme.typography.bodySmall,
-                            )
-                        }
-                        loggingPersisted -> {
-                            Text(
-                                text = stringResource(R.string.background_recovering),
-                                color = MaterialTheme.colorScheme.primary,
-                                style = MaterialTheme.typography.bodySmall,
-                            )
-                        }
-                    }
-                }
-            }
-
-            LazyVerticalGrid(
-                columns = GridCells.Fixed(2),
-                modifier = Modifier.weight(1f),
-                contentPadding = PaddingValues(bottom = 4.dp),
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                verticalArrangement = Arrangement.spacedBy(6.dp),
-            ) {
-                items(metrics, key = { it.title }) { metric ->
-                    MetricTile(
-                        title = metric.title,
-                        value = metric.value,
-                    )
-                }
-            }
-
-            when (recordingPhase) {
-                RecordingPhase.Idle -> {
-                    Button(
-                        onClick = onStartLogging,
-                        modifier = Modifier.fillMaxWidth(),
-                    ) {
-                        Text(stringResource(R.string.start_logging))
-                    }
-                }
-                RecordingPhase.Recording -> {
-                    Button(
-                        onClick = onPauseLogging,
-                        modifier = Modifier.fillMaxWidth(),
-                    ) {
-                        Text(stringResource(R.string.pause_logging))
-                    }
-                }
-                RecordingPhase.Paused -> {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        Button(
-                            onClick = onResumeLogging,
-                            modifier = Modifier.weight(1f),
-                        ) {
-                            Text(stringResource(R.string.resume_logging))
-                        }
-                        OutlinedButton(
-                            onClick = { showFinishDialog = true },
-                            modifier = Modifier.weight(1f),
-                        ) {
-                            Text(stringResource(R.string.finish_logging))
-                        }
-                    }
                 }
             }
         }
+
+        if (!mapCollapsed) {
+            RideCompactMetricsBar(line = compactLine)
+        }
+
+        RideRecordingControls(
+            mapCollapsed = mapCollapsed,
+            onMapCollapsedChange = { mapCollapsed = !mapCollapsed },
+            recordingPhase = recordingPhase,
+            onStartLogging = onStartLogging,
+            onPauseLogging = onPauseLogging,
+            onResumeLogging = onResumeLogging,
+            onFinishClick = { showFinishDialog = true },
+        )
     }
 }

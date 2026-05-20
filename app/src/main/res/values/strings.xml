@@ -40,6 +40,12 @@
     <string name="found_devices">Найденные устройства</string>
 
     <string name="map_recenter">Центрировать на моей позиции</string>
+    <string name="map_collapse">Свернуть карту</string>
+    <string name="map_expand">Показать карту</string>
+    <string name="cd_start_logging">Начать запись</string>
+    <string name="cd_pause_logging">Пауза</string>
+    <string name="cd_resume_logging">Возобновить запись</string>
+    <string name="cd_finish_logging">Завершить запись</string>
 
     <string name="ride_screen_title">Поездка</string>
     <string name="ride_not_active">Запись не активна. Начните запись на вкладке «Поездка».</string>
@@ -54,6 +60,13 @@
     <string name="metric_current_time">Текущее время</string>
     <string name="metric_max_speed">Максимальная скорость</string>
     <string name="metric_distance">Пройденное расстояние</string>
+    <string name="metric_label_duration">Длительность</string>
+    <string name="metric_label_heart_rate">Пульс</string>
+    <string name="metric_label_current_speed">Скорость</string>
+    <string name="metric_label_average_speed">Средняя</string>
+    <string name="metric_label_max_speed">Максимум</string>
+    <string name="metric_label_distance">Дистанция</string>
+    <string name="metric_label_current_time">Время</string>
     <string name="bpm_unit">уд/мин</string>
 
     <string name="tracks_screen_title">Записи</string>

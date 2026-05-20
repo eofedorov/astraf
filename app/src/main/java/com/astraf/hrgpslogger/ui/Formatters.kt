@@ -24,6 +24,9 @@ fun formatDuration(millis: Long): String {
 fun formatSpeedKmh(speed: Float?): String =
     speed?.let { "${"%.1f".format(Locale.getDefault(), it)} км/ч" } ?: "—"
 
+fun formatSpeedKmhNumber(speed: Float?): String =
+    speed?.let { "%.1f".format(Locale.getDefault(), it) } ?: "—"
+
 fun formatDistanceMeters(meters: Double): String {
     return if (meters >= 1000.0) {
         "${"%.2f".format(Locale.getDefault(), meters / 1000.0)} км"
@@ -32,8 +35,46 @@ fun formatDistanceMeters(meters: Double): String {
     }
 }
 
+fun formatDistanceNumber(meters: Double): String =
+    if (meters >= 1000.0) {
+        "%.2f".format(Locale.getDefault(), meters / 1000.0)
+    } else {
+        meters.roundToInt().toString()
+    }
+
+fun formatDistanceUnit(meters: Double): String =
+    if (meters >= 1000.0) "км" else "м"
+
 fun formatCurrentTime(): String =
     timeFormatter.format(Instant.now().atZone(ZoneId.systemDefault()))
 
 fun formatTrackDateTime(millis: Long): String =
     dateTimeFormatter.format(Instant.ofEpochMilli(millis).atZone(ZoneId.systemDefault()))
+
+fun formatHeartRateCompact(bpm: Int?): String =
+    if (bpm != null) "❤️$bpm" else "❤️—"
+
+fun formatDistanceKmShort(meters: Double): String {
+    return if (meters >= 1000.0) {
+        "${"%.1f".format(Locale.getDefault(), meters / 1000.0)} km"
+    } else {
+        "${meters.roundToInt()} m"
+    }
+}
+
+fun formatAvgSpeedShort(speedKmh: Float?): String =
+    speedKmh?.let { "${"%.1f".format(Locale.getDefault(), it)} avg" } ?: "— avg"
+
+fun buildRideCompactMetricsLine(
+    currentSpeedKmh: Float?,
+    heartRateBpm: Int?,
+    distanceMeters: Double,
+    averageSpeedKmh: Float?,
+    durationMillis: Long,
+): String = listOf(
+    formatSpeedKmh(currentSpeedKmh),
+    formatHeartRateCompact(heartRateBpm),
+    formatDistanceKmShort(distanceMeters),
+    formatAvgSpeedShort(averageSpeedKmh),
+    formatDuration(durationMillis),
+).joinToString(" | ")

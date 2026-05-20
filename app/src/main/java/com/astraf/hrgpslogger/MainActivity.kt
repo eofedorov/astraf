@@ -10,8 +10,13 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
@@ -19,10 +24,9 @@ import androidx.compose.material.icons.filled.DirectionsBike
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Icon
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -33,6 +37,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import androidx.compose.ui.res.stringResource
@@ -240,26 +245,10 @@ private fun LoggerAppScreen(
     Scaffold(
         modifier = Modifier.fillMaxSize(),
         bottomBar = {
-            NavigationBar {
-                NavigationBarItem(
-                    selected = selectedTab == AppTab.Settings,
-                    onClick = { selectedTab = AppTab.Settings },
-                    icon = { Icon(Icons.Default.Settings, contentDescription = null) },
-                    label = { Text(stringResource(R.string.tab_start)) },
-                )
-                NavigationBarItem(
-                    selected = selectedTab == AppTab.Ride,
-                    onClick = { selectedTab = AppTab.Ride },
-                    icon = { Icon(Icons.Default.DirectionsBike, contentDescription = null) },
-                    label = { Text(stringResource(R.string.tab_ride)) },
-                )
-                NavigationBarItem(
-                    selected = selectedTab == AppTab.Tracks,
-                    onClick = { selectedTab = AppTab.Tracks },
-                    icon = { Icon(Icons.Default.History, contentDescription = null) },
-                    label = { Text(stringResource(R.string.tab_tracks)) },
-                )
-            }
+            ThinTabBar(
+                selectedTab = selectedTab,
+                onTabSelected = { selectedTab = it },
+            )
         },
     ) { padding ->
         val contentModifier = Modifier
@@ -280,7 +269,6 @@ private fun LoggerAppScreen(
             RideScreen(
                 session = session,
                 recordingPhase = recordingPhase,
-                loggingPersisted = loggingPersisted,
                 isMapActive = selectedTab == AppTab.Ride,
                 onStartLogging = onStartLogging,
                 onPauseLogging = onPauseLogging,
@@ -297,6 +285,55 @@ private fun LoggerAppScreen(
                     .fillMaxSize()
                     .tabPanelVisible(selectedTab == AppTab.Tracks)
                     .tabZIndex(selectedTab == AppTab.Tracks),
+            )
+        }
+    }
+}
+
+@Composable
+private fun ThinTabBar(
+    selectedTab: AppTab,
+    onTabSelected: (AppTab) -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(48.dp)
+            .background(MaterialTheme.colorScheme.surfaceContainer),
+        horizontalArrangement = Arrangement.SpaceEvenly,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        IconButton(onClick = { onTabSelected(AppTab.Settings) }) {
+            Icon(
+                imageVector = Icons.Default.Settings,
+                contentDescription = stringResource(R.string.tab_start),
+                tint = if (selectedTab == AppTab.Settings) {
+                    MaterialTheme.colorScheme.primary
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                },
+            )
+        }
+        IconButton(onClick = { onTabSelected(AppTab.Ride) }) {
+            Icon(
+                imageVector = Icons.Default.DirectionsBike,
+                contentDescription = stringResource(R.string.tab_ride),
+                tint = if (selectedTab == AppTab.Ride) {
+                    MaterialTheme.colorScheme.primary
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                },
+            )
+        }
+        IconButton(onClick = { onTabSelected(AppTab.Tracks) }) {
+            Icon(
+                imageVector = Icons.Default.History,
+                contentDescription = stringResource(R.string.tab_tracks),
+                tint = if (selectedTab == AppTab.Tracks) {
+                    MaterialTheme.colorScheme.primary
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                },
             )
         }
     }

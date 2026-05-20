@@ -41,6 +41,13 @@ gradlew.bat assembleDebug
    - файл: `hr_gps_<timestamp>.csv`
    - заголовок: `timestamp,bpm,latitude,longitude,accuracy_m`
 
+## Strava
+
+1. Создайте приложение на [Strava API Settings](https://www.strava.com/settings/api).
+2. В **Authorization Callback Domain** укажите `localhost` (redirect URI: `astraf://localhost/strava-auth`).
+3. В приложении: **Настройки → Привязать Strava** — откроется OAuth Strava (при первом разе понадобятся Client ID и Secret с той же страницы API; они сохраняются только на устройстве, не в APK).
+4. На вкладке **Треки** — **Отправить в Strava** для завершённой записи.
+
 ## Ограничения
 
 - Работает только с пульсометрами, поддерживающими BLE Heart Rate Service (`0x180D`).

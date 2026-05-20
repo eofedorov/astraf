@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
@@ -18,6 +19,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -30,18 +32,24 @@ import com.astraf.hrgpslogger.R
 import com.astraf.hrgpslogger.RecordingPhase
 import com.astraf.hrgpslogger.TrackRepository
 import com.astraf.hrgpslogger.TrackSummary
+import com.astraf.hrgpslogger.strava.StravaIntegration
+import com.astraf.hrgpslogger.strava.StravaUploadUiStatus
 import com.astraf.hrgpslogger.ui.formatDistanceMeters
 import com.astraf.hrgpslogger.ui.formatDuration
 import com.astraf.hrgpslogger.ui.formatTrackDateTime
+import kotlinx.coroutines.launch
 
 @Composable
 fun TracksScreen(
     session: LoggerSession,
+    stravaIntegration: StravaIntegration,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     val csvPath by session.csvLogger.currentFilePath.collectAsStateWithLifecycle()
     val recordingPhase by session.csvLogger.phase.collectAsStateWithLifecycle()
+    val uploadStatus by stravaIntegration.uploadStatus.collectAsStateWithLifecycle()
 
     var tracks by remember { mutableStateOf<List<TrackSummary>>(emptyList()) }
 
@@ -63,6 +71,18 @@ fun TracksScreen(
             fontWeight = FontWeight.Bold,
         )
 
+        uploadStatus?.let { status ->
+            Text(
+                text = formatUploadStatus(status),
+                style = MaterialTheme.typography.bodySmall,
+                color = when (status) {
+                    is StravaUploadUiStatus.Failed -> MaterialTheme.colorScheme.error
+                    is StravaUploadUiStatus.Success -> MaterialTheme.colorScheme.primary
+                    else -> MaterialTheme.colorScheme.onSurfaceVariant
+                },
+            )
+        }
+
         if (tracks.isEmpty()) {
             Text(
                 text = stringResource(R.string.tracks_empty),
@@ -77,14 +97,24 @@ fun TracksScreen(
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             items(tracks, key = { it.fileName }) { track ->
-                TrackCard(track = track)
+                TrackCard(
+                    track = track,
+                    onUploadToStrava = {
+                        scope.launch {
+                            stravaIntegration.uploadTrack(track.fileName)
+                        }
+                    },
+                )
             }
         }
     }
 }
 
 @Composable
-private fun TrackCard(track: TrackSummary) {
+private fun TrackCard(
+    track: TrackSummary,
+    onUploadToStrava: () -> Unit,
+) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = if (track.isActive) {
@@ -126,6 +156,15 @@ private fun TrackCard(track: TrackSummary) {
                     style = MaterialTheme.typography.bodySmall,
                 )
             }
+            if (!track.isActive && track.pointCount > 0) {
+                Spacer(modifier = Modifier.height(4.dp))
+                Button(
+                    onClick = onUploadToStrava,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text(stringResource(R.string.strava_upload))
+                }
+            }
             Spacer(modifier = Modifier.height(2.dp))
             Text(
                 text = track.fileName,
@@ -134,4 +173,15 @@ private fun TrackCard(track: TrackSummary) {
             )
         }
     }
+}
+
+@Composable
+private fun formatUploadStatus(status: StravaUploadUiStatus): String = when (status) {
+    StravaUploadUiStatus.Exporting -> stringResource(R.string.strava_upload_exporting)
+    StravaUploadUiStatus.Uploading -> stringResource(R.string.strava_upload_uploading)
+    StravaUploadUiStatus.Processing -> stringResource(R.string.strava_upload_processing)
+    is StravaUploadUiStatus.Success ->
+        stringResource(R.string.strava_upload_success, status.activityId)
+    is StravaUploadUiStatus.Failed ->
+        stringResource(R.string.strava_upload_failed, status.message)
 }

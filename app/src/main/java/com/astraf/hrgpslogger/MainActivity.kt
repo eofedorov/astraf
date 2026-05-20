@@ -3,6 +3,7 @@ package com.astraf.hrgpslogger
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
+import androidx.lifecycle.lifecycleScope
 import android.os.Bundle
 import android.os.PowerManager
 import android.provider.Settings
@@ -45,12 +46,15 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.astraf.hrgpslogger.RecordingPhase
 import com.astraf.hrgpslogger.ui.screens.RideScreen
 import com.astraf.hrgpslogger.ui.screens.SettingsScreen
+import com.astraf.hrgpslogger.strava.StravaIntegration
 import com.astraf.hrgpslogger.ui.screens.TracksScreen
 import com.astraf.hrgpslogger.ui.theme.HrGpsLoggerTheme
+import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
 
     private lateinit var session: LoggerSession
+    private lateinit var stravaIntegration: StravaIntegration
     private var permissionsGranted by mutableStateOf(false)
     private var batteryOptimizationEnabled by mutableStateOf(false)
     private var pendingBleScanAfterPermissions = false
@@ -75,7 +79,10 @@ class MainActivity : ComponentActivity() {
         LockScreenHelper.enable(this)
         enableEdgeToEdge()
 
-        session = (application as HrGpsLoggerApp).session
+        val app = application as HrGpsLoggerApp
+        session = app.session
+        stravaIntegration = app.stravaIntegration
+        handleStravaCallback(intent?.data)
         permissionsGranted = Permissions.hasAll(this)
         refreshBatteryOptimizationState()
         if (permissionsGranted) {
@@ -94,6 +101,7 @@ class MainActivity : ComponentActivity() {
                     showBatteryOptimizationButton = batteryOptimizationEnabled,
                     loggingPersisted = LoggingStateStore.isActive(this@MainActivity),
                     session = session,
+                    stravaIntegration = stravaIntegration,
                     onConnectBle = { onConnectBleClicked() },
                     onStartLogging = { startBackgroundLogging() },
                     onPauseLogging = { pauseBackgroundLogging() },
@@ -106,10 +114,24 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handleStravaCallback(intent.data)
+    }
+
     override fun onResume() {
         super.onResume()
         LockScreenHelper.enable(this)
         refreshBatteryOptimizationState()
+    }
+
+    private fun handleStravaCallback(uri: Uri?) {
+        if (uri == null || uri.scheme != "astraf" || uri.host != "localhost") return
+        if (uri.path?.contains("strava-auth") != true) return
+        lifecycleScope.launch {
+            stravaIntegration.handleAuthorizationCallback(uri)
+        }
     }
 
     override fun onDestroy() {
@@ -195,6 +217,7 @@ private fun LoggerAppScreen(
     showBatteryOptimizationButton: Boolean,
     loggingPersisted: Boolean,
     session: LoggerSession,
+    stravaIntegration: StravaIntegration,
     onConnectBle: () -> Unit,
     onStartLogging: () -> Unit,
     onPauseLogging: () -> Unit,
@@ -258,6 +281,7 @@ private fun LoggerAppScreen(
         Box(modifier = contentModifier) {
             SettingsScreen(
                 session = session,
+                stravaIntegration = stravaIntegration,
                 showBatteryOptimizationButton = showBatteryOptimizationButton,
                 onConnect = onConnectBle,
                 onOpenBatterySettings = onOpenBatterySettings,
@@ -281,6 +305,7 @@ private fun LoggerAppScreen(
             )
             TracksScreen(
                 session = session,
+                stravaIntegration = stravaIntegration,
                 modifier = Modifier
                     .fillMaxSize()
                     .tabPanelVisible(selectedTab == AppTab.Tracks)

@@ -74,4 +74,23 @@
     <string name="tracks_empty">Сохранённых треков пока нет.</string>
     <string name="track_recording_now">Идёт запись</string>
     <string name="track_points">Точек: %1$d</string>
+
+    <string name="strava_section_title">Strava</string>
+    <string name="strava_link">Привязать Strava</string>
+    <string name="strava_disconnect">Отключить</string>
+    <string name="strava_oauth_hint">Client ID и Client Secret с strava.com/settings/api (Callback Domain: localhost). Нужны один раз для OAuth, в APK не вшиваются.</string>
+    <string name="strava_client_id">Client ID</string>
+    <string name="strava_client_secret">Client Secret</string>
+    <string name="strava_credentials_required">Укажите Client ID и Client Secret</string>
+    <string name="strava_link_required">Сначала привяжите Strava в настройках</string>
+    <string name="strava_linked">Привязано: %1$s</string>
+    <string name="strava_linked_unknown">Привязано</string>
+    <string name="strava_not_linked">Strava не привязана</string>
+    <string name="strava_upload">Отправить в Strava</string>
+    <string name="strava_upload_exporting">Подготовка файла…</string>
+    <string name="strava_upload_uploading">Загрузка в Strava…</string>
+    <string name="strava_upload_processing">Strava обрабатывает трек…</string>
+    <string name="strava_upload_success">Загружено в Strava (activity %1$d)</string>
+    <string name="strava_upload_failed">Ошибка Strava: %1$s</string>
+    <string name="strava_upload_active_track">Нельзя отправить трек, который ещё записывается</string>
 </resources>

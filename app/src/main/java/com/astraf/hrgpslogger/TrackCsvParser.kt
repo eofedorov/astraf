@@ -6,16 +6,26 @@ import java.time.format.DateTimeParseException
 
 object TrackCsvParser {
 
-    fun parseAcceptedPoints(file: File): List<AcceptedGpsPoint> {
+    fun parseAcceptedPoints(file: File): List<AcceptedGpsPoint> =
+        parseSamples(file).map { it.point }
+
+    fun parseSamples(file: File): List<TrackCsvSample> {
         if (!file.exists()) return emptyList()
 
-        val points = mutableListOf<AcceptedGpsPoint>()
+        val samples = mutableListOf<TrackCsvSample>()
         file.bufferedReader().useLines { lines ->
             lines.drop(1).forEach { line ->
-                parseAcceptedPoint(line)?.let { points.add(it) }
+                parseSample(line)?.let { samples.add(it) }
             }
         }
-        return points
+        return samples
+    }
+
+    fun parseSample(line: String): TrackCsvSample? {
+        val point = parseAcceptedPoint(line) ?: return null
+        val parts = line.split(',')
+        val bpm = parts.getOrNull(6)?.trim()?.toIntOrNull()
+        return TrackCsvSample(point = point, bpm = bpm)
     }
 
     fun parseAcceptedPoint(line: String): AcceptedGpsPoint? {

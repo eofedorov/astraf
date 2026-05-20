@@ -58,5 +58,6 @@ dependencies {
     implementation(libs.androidx.compose.material.icons.extended)
     implementation(libs.play.services.location)
     implementation(libs.maplibre.android.sdk.vulkan)
+    implementation(libs.okhttp)
     testImplementation(libs.junit)
 }

@@ -1,12 +1,15 @@
 package com.astraf.hrgpslogger
 
 import android.content.Context
+import android.os.SystemClock
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import java.io.File
@@ -23,6 +26,10 @@ class LoggerSession(context: Context) {
     val activeTrackStore = ActiveTrackStore()
 
     private var csvCollectJob: Job? = null
+    private var speedPolicyJob: Job? = null
+
+    private var stationarySinceElapsed: Long? = null
+    private var movingSinceElapsed: Long? = null
 
     val recordingPhase get() = csvLogger.phase
 
@@ -47,6 +54,7 @@ class LoggerSession(context: Context) {
                 bleClient.connect(address)
             }
         }
+        reconcileSpeedBasedRidePolicy()
     }
 
     fun ensureTrackLoadedFromFile(fileName: String) {
@@ -106,17 +114,19 @@ class LoggerSession(context: Context) {
                 )
             }
             startCollectJob()
+            reconcileSpeedBasedRidePolicy()
         }
 
         return file?.name
     }
 
-    fun pauseCsvCollection() {
+    fun pauseCsvCollection(manualPause: Boolean = true) {
         csvCollectJob?.cancel()
         csvCollectJob = null
         csvLogger.pauseLogging()
         tripStatsTracker.pause()
-        persistLoggingState(paused = true)
+        persistLoggingState(paused = true, manualPauseWhilePaused = manualPause)
+        reconcileSpeedBasedRidePolicy()
     }
 
     fun resumeCsvCollection() {
@@ -130,18 +140,26 @@ class LoggerSession(context: Context) {
         )
         startCollectJob()
         persistLoggingState(paused = false)
+        reconcileSpeedBasedRidePolicy()
     }
 
     fun stopCsvCollection() {
         csvCollectJob?.cancel()
         csvCollectJob = null
+        speedPolicyJob?.cancel()
+        speedPolicyJob = null
+        stationarySinceElapsed = null
+        movingSinceElapsed = null
         tripStatsTracker.stop()
         tripStatsTracker.reset()
         activeTrackStore.clear()
         csvLogger.finishLogging()
     }
 
-    fun persistLoggingState(paused: Boolean = csvLogger.phase.value == RecordingPhase.Paused) {
+    fun persistLoggingState(
+        paused: Boolean = csvLogger.phase.value == RecordingPhase.Paused,
+        manualPauseWhilePaused: Boolean = LoggingStateStore.isManualPauseWhilePaused(appContext),
+    ) {
         if (!csvLogger.hasActiveSession() && !LoggingStateStore.isActive(appContext)) return
         LoggingStateStore.save(
             appContext,
@@ -149,12 +167,100 @@ class LoggerSession(context: Context) {
             bleAddress = bleClient.connectedDeviceAddress.value
                 ?: LoggingStateStore.getBleAddress(appContext),
             paused = paused,
+            manualPauseWhilePaused = if (paused) manualPauseWhilePaused else false,
         )
+    }
+
+    /** Перезапускает наблюдение за скоростью (автопауза / автостарт) согласно фазе и типу паузы. */
+    internal fun reconcileSpeedBasedRidePolicy() {
+        speedPolicyJob?.cancel()
+        speedPolicyJob = null
+        stationarySinceElapsed = null
+        movingSinceElapsed = null
+
+        if (!csvLogger.hasActiveSession()) return
+        when (csvLogger.phase.value) {
+            RecordingPhase.Idle -> return
+            RecordingPhase.Paused ->
+                if (LoggingStateStore.isManualPauseWhilePaused(appContext)) return
+            RecordingPhase.Recording -> Unit
+        }
+
+        speedPolicyJob = combine(
+            csvLogger.phase,
+            locationTracker.speedKmh,
+            speedPolicyTickFlow(),
+        ) { phase, speed, _ -> phase to speed }
+            .onEach { (phase, speed) ->
+                val now = SystemClock.elapsedRealtime()
+                when (phase) {
+                    RecordingPhase.Recording -> {
+                        movingSinceElapsed = null
+                        if (speed == null) {
+                            stationarySinceElapsed = null
+                            return@onEach
+                        }
+                        if (speed < AUTO_PAUSE_BELOW_KMH) {
+                            if (stationarySinceElapsed == null) {
+                                stationarySinceElapsed = now
+                            } else if (now - stationarySinceElapsed!! >= AUTO_PAUSE_HOLD_MS) {
+                                stationarySinceElapsed = null
+                                applyAutoPauseFromSpeedPolicy()
+                            }
+                        } else {
+                            stationarySinceElapsed = null
+                        }
+                    }
+                    RecordingPhase.Paused -> {
+                        stationarySinceElapsed = null
+                        if (LoggingStateStore.isManualPauseWhilePaused(appContext)) {
+                            movingSinceElapsed = null
+                            return@onEach
+                        }
+                        if (speed == null) {
+                            movingSinceElapsed = null
+                            return@onEach
+                        }
+                        if (speed >= AUTO_RESUME_MIN_KMH) {
+                            if (movingSinceElapsed == null) {
+                                movingSinceElapsed = now
+                            } else if (now - movingSinceElapsed!! >= AUTO_RESUME_HOLD_MS) {
+                                movingSinceElapsed = null
+                                applyAutoResumeFromSpeedPolicy()
+                            }
+                        } else {
+                            movingSinceElapsed = null
+                        }
+                    }
+                    RecordingPhase.Idle -> Unit
+                }
+            }
+            .launchIn(scope)
+    }
+
+    private fun applyAutoPauseFromSpeedPolicy() {
+        if (csvLogger.phase.value != RecordingPhase.Recording) return
+        pauseCsvCollection(manualPause = false)
+    }
+
+    private fun applyAutoResumeFromSpeedPolicy() {
+        if (csvLogger.phase.value != RecordingPhase.Paused) return
+        if (LoggingStateStore.isManualPauseWhilePaused(appContext)) return
+        LoggingForegroundService.resumeSession(appContext)
+    }
+
+    private fun speedPolicyTickFlow() = flow {
+        while (true) {
+            emit(Unit)
+            delay(SPEED_POLICY_TICK_MS)
+        }
     }
 
     fun release() {
         if (LoggingStateStore.isActive(appContext)) return
         csvCollectJob?.cancel()
+        speedPolicyJob?.cancel()
+        speedPolicyJob = null
         bleClient.release()
         locationTracker.release()
         csvLogger.release()
@@ -192,5 +298,13 @@ class LoggerSession(context: Context) {
                 }
             }
             .launchIn(scope)
+    }
+
+    companion object {
+        private const val SPEED_POLICY_TICK_MS = 1_000L
+        private const val AUTO_PAUSE_BELOW_KMH = 2f
+        private const val AUTO_PAUSE_HOLD_MS = 10_000L
+        private const val AUTO_RESUME_MIN_KMH = 2f
+        private const val AUTO_RESUME_HOLD_MS = 2_000L
     }
 }

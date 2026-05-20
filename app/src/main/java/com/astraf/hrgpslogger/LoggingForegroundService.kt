@@ -117,7 +117,7 @@ class LoggingForegroundService : Service() {
 
     private fun pauseLogging() {
         if (session.csvLogger.phase.value != RecordingPhase.Recording) return
-        session.pauseCsvCollection()
+        session.pauseCsvCollection(manualPause = true)
         updateNotification(paused = true)
     }
 

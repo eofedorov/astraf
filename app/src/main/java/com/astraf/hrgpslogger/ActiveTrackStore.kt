@@ -4,71 +4,53 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import java.io.File
-import java.time.Instant
-import java.time.format.DateTimeParseException
-
-data class GeoPoint(
-    val latitude: Double,
-    val longitude: Double,
-)
 
 class ActiveTrackStore {
 
-    private val _points = MutableStateFlow<List<GeoPoint>>(emptyList())
-    val points: StateFlow<List<GeoPoint>> = _points.asStateFlow()
+    private val _segments = MutableStateFlow<List<TrackSegment>>(emptyList())
+    val segments: StateFlow<List<TrackSegment>> = _segments.asStateFlow()
 
-    fun append(sample: LocationSample, phase: RecordingPhase) {
-        if (phase != RecordingPhase.Recording) return
-        if (sample.accuracyMeters > MAX_ACCURACY_M) return
-        val point = GeoPoint(sample.latitude, sample.longitude)
-        val current = _points.value
-        val last = current.lastOrNull()
-        if (last != null &&
-            last.latitude == point.latitude &&
-            last.longitude == point.longitude
-        ) {
-            return
+    fun appendAccepted(point: AcceptedGpsPoint, newSegment: Boolean) {
+        val current = _segments.value.toMutableList()
+        val geo = point.toGeoPoint()
+        val lastSegment = current.lastOrNull()
+
+        if (lastSegment == null || newSegment || lastSegment.id != point.segmentId) {
+            val existingIdx = current.indexOfFirst { it.id == point.segmentId }
+            if (existingIdx >= 0) {
+                val segment = current[existingIdx]
+                if (shouldAppend(segment.points.lastOrNull(), geo)) {
+                    current[existingIdx] = segment.copy(points = segment.points + geo)
+                }
+            } else {
+                current.add(TrackSegment(id = point.segmentId, points = listOf(geo)))
+            }
+        } else {
+            if (shouldAppend(lastSegment.points.lastOrNull(), geo)) {
+                current[current.lastIndex] = lastSegment.copy(points = lastSegment.points + geo)
+            }
         }
-        _points.value = current + point
+        _segments.value = current
     }
 
     fun clear() {
-        _points.value = emptyList()
+        _segments.value = emptyList()
     }
 
     fun restoreFromCsv(file: File) {
-        if (!file.exists()) {
-            clear()
-            return
-        }
-        val loaded = mutableListOf<GeoPoint>()
-        file.bufferedReader().useLines { lines ->
-            lines.drop(1).forEach { line ->
-                if (line.isBlank()) return@forEach
-                val parts = line.split(',')
-                if (parts.size < 4) return@forEach
-                if (parseTimestamp(parts[0]) == null) return@forEach
-                val lat = parts[2].toDoubleOrNull() ?: return@forEach
-                val lon = parts[3].toDoubleOrNull() ?: return@forEach
-                val point = GeoPoint(lat, lon)
-                val last = loaded.lastOrNull()
-                if (last == null || last.latitude != point.latitude || last.longitude != point.longitude) {
-                    loaded.add(point)
-                }
-            }
-        }
-        _points.value = loaded
+        restoreFromAcceptedPoints(TrackCsvParser.parseAcceptedPoints(file))
     }
 
-    private fun parseTimestamp(raw: String): Long? {
-        return try {
-            Instant.parse(raw.trim()).toEpochMilli()
-        } catch (_: DateTimeParseException) {
-            null
+    fun restoreFromAcceptedPoints(points: List<AcceptedGpsPoint>) {
+        clear()
+        points.forEachIndexed { index, point ->
+            val newSegment = index == 0 || point.segmentId != points[index - 1].segmentId
+            appendAccepted(point, newSegment = newSegment)
         }
     }
 
-    companion object {
-        private const val MAX_ACCURACY_M = 25f
+    private fun shouldAppend(last: GeoPoint?, point: GeoPoint): Boolean {
+        if (last == null) return true
+        return last.latitude != point.latitude || last.longitude != point.longitude
     }
 }

@@ -25,10 +25,12 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.astraf.hrgpslogger.GeoPoint
+import com.astraf.hrgpslogger.AcceptedGpsPoint
 import com.astraf.hrgpslogger.LocationSample
 import com.astraf.hrgpslogger.R
+import com.astraf.hrgpslogger.TrackSegment
 import org.maplibre.geojson.Feature
+import org.maplibre.geojson.FeatureCollection
 import org.maplibre.geojson.LineString
 import org.maplibre.geojson.Point
 import kotlinx.coroutines.flow.StateFlow
@@ -62,14 +64,15 @@ private const val RECENTER_ZOOM = 16.5
 @Composable
 fun RideMapView(
     location: StateFlow<LocationSample?>,
-    trackPoints: StateFlow<List<GeoPoint>>,
+    acceptedPoint: StateFlow<AcceptedGpsPoint?>,
+    trackSegments: StateFlow<List<TrackSegment>>,
     isMapActive: Boolean,
     modifier: Modifier = Modifier,
 ) {
-    val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val locationSample by location.collectAsStateWithLifecycle()
-    val track by trackPoints.collectAsStateWithLifecycle()
+    val accepted by acceptedPoint.collectAsStateWithLifecycle()
+    val segments by trackSegments.collectAsStateWithLifecycle()
 
     var mapLibreMap by remember { mutableStateOf<MapLibreMap?>(null) }
     var style by remember { mutableStateOf<Style?>(null) }
@@ -77,6 +80,7 @@ fun RideMapView(
     var didInitialCenter by remember { mutableStateOf(false) }
     var isDisposed by remember { mutableStateOf(false) }
 
+    val context = LocalContext.current
     val mapView = remember {
         MapView(context).apply {
             onCreate(Bundle())
@@ -164,17 +168,24 @@ fun RideMapView(
         }
     }
 
-    LaunchedEffect(style, locationSample, track) {
+    LaunchedEffect(style, locationSample, accepted, segments) {
         if (isDisposed) return@LaunchedEffect
         val currentStyle = style ?: return@LaunchedEffect
-        updateTrackLayer(currentStyle, track)
-        updateLocationLayer(currentStyle, locationSample)
+        updateTrackLayer(currentStyle, segments)
+        val positionSample = accepted?.let {
+            LocationSample(
+                latitude = it.latitude,
+                longitude = it.longitude,
+                timestampMillis = it.timestampMillis,
+                accuracyMeters = it.accuracyMeters,
+            )
+        } ?: locationSample
+        updateLocationLayer(currentStyle, positionSample)
         val map = mapLibreMap ?: return@LaunchedEffect
-        val sample = locationSample
-        if (sample != null && !didInitialCenter && !userHasPanned) {
+        if (positionSample != null && !didInitialCenter && !userHasPanned) {
             map.animateCamera(
                 CameraUpdateFactory.newLatLngZoom(
-                    LatLng(sample.latitude, sample.longitude),
+                    LatLng(positionSample.latitude, positionSample.longitude),
                     RECENTER_ZOOM,
                 ),
             )
@@ -190,7 +201,9 @@ fun RideMapView(
 
         FloatingActionButton(
             onClick = {
-                val sample = locationSample ?: return@FloatingActionButton
+                val sample = accepted?.let {
+                    LocationSample(it.latitude, it.longitude, it.timestampMillis, it.accuracyMeters)
+                } ?: locationSample ?: return@FloatingActionButton
                 mapLibreMap?.animateCamera(
                     CameraUpdateFactory.newLatLngZoom(
                         LatLng(sample.latitude, sample.longitude),
@@ -234,14 +247,18 @@ private fun setupOverlayLayers(style: Style) {
     }
 }
 
-private fun updateTrackLayer(style: Style, track: List<GeoPoint>) {
+private fun updateTrackLayer(style: Style, segments: List<TrackSegment>) {
     val source = style.getSourceAs<GeoJsonSource>(TRACK_SOURCE_ID) ?: return
-    if (track.size < 2) {
-        source.setGeoJson("{\"type\":\"FeatureCollection\",\"features\":[]}")
+    val drawableSegments = segments.filter { it.points.size >= 2 }
+    if (drawableSegments.isEmpty()) {
+        source.setGeoJson(FeatureCollection.fromFeatures(emptyList()))
         return
     }
-    val coordinates = track.map { Point.fromLngLat(it.longitude, it.latitude) }
-    source.setGeoJson(Feature.fromGeometry(LineString.fromLngLats(coordinates)))
+    val features = drawableSegments.map { segment ->
+        val coordinates = segment.points.map { Point.fromLngLat(it.longitude, it.latitude) }
+        Feature.fromGeometry(LineString.fromLngLats(coordinates))
+    }
+    source.setGeoJson(FeatureCollection.fromFeatures(features))
 }
 
 private fun updateLocationLayer(style: Style, location: LocationSample?) {

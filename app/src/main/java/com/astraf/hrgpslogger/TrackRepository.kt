@@ -2,20 +2,7 @@ package com.astraf.hrgpslogger
 
 import android.content.Context
 import java.io.File
-import java.time.Instant
-import java.time.format.DateTimeParseException
-import kotlin.math.cos
-import kotlin.math.sqrt
-
-data class TrackSummary(
-    val fileName: String,
-    val filePath: String,
-    val startedAtMillis: Long,
-    val pointCount: Int,
-    val durationMillis: Long?,
-    val distanceMeters: Double?,
-    val isActive: Boolean,
-)
+import kotlin.math.max
 
 class TrackRepository(private val context: Context) {
 
@@ -53,39 +40,9 @@ class TrackRepository(private val context: Context) {
             )
         }
 
-        var pointCount = 0
-        var firstTimestampMillis: Long? = null
-        var lastTimestampMillis: Long? = null
-        var lastLat: Double? = null
-        var lastLon: Double? = null
-        var distanceMeters = 0.0
-
-        file.bufferedReader().useLines { lines ->
-            lines.drop(1).forEach { line ->
-                if (line.isBlank()) return@forEach
-                val parts = line.split(',')
-                if (parts.size < 4) return@forEach
-
-                val timestampMillis = parseTimestamp(parts[0]) ?: return@forEach
-                val lat = parts[2].toDoubleOrNull()
-                val lon = parts[3].toDoubleOrNull()
-
-                pointCount++
-                if (firstTimestampMillis == null) firstTimestampMillis = timestampMillis
-                lastTimestampMillis = timestampMillis
-
-                if (lat != null && lon != null && lastLat != null && lastLon != null) {
-                    distanceMeters += segmentDistanceMeters(lastLat!!, lastLon!!, lat, lon)
-                }
-                if (lat != null && lon != null) {
-                    lastLat = lat
-                    lastLon = lon
-                }
-            }
-        }
-
-        val duration = if (firstTimestampMillis != null && lastTimestampMillis != null) {
-            (lastTimestampMillis!! - firstTimestampMillis!!).coerceAtLeast(0L)
+        val points = TrackCsvParser.parseAcceptedPoints(file)
+        val duration = if (points.size >= 2) {
+            (points.last().timestampMillis - points.first().timestampMillis).coerceAtLeast(0L)
         } else {
             null
         }
@@ -93,33 +50,15 @@ class TrackRepository(private val context: Context) {
         return TrackSummary(
             fileName = file.name,
             filePath = file.absolutePath,
-            startedAtMillis = firstTimestampMillis ?: startedAtMillis,
-            pointCount = pointCount,
+            startedAtMillis = points.firstOrNull()?.timestampMillis ?: startedAtMillis,
+            pointCount = points.size,
             durationMillis = duration,
-            distanceMeters = if (pointCount > 1) distanceMeters else null,
+            distanceMeters = if (points.size > 1) TrackCsvParser.distanceMeters(points) else null,
             isActive = false,
         )
     }
 
-    private fun parseTimestamp(raw: String): Long? {
-        return try {
-            Instant.parse(raw.trim()).toEpochMilli()
-        } catch (_: DateTimeParseException) {
-            null
-        }
-    }
-
-    private fun segmentDistanceMeters(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Double {
-        val latMidRad = Math.toRadians((lat1 + lat2) * 0.5)
-        val dLon = Math.toRadians(lon2 - lon1)
-        val dLat = Math.toRadians(lat2 - lat1)
-        val dx = dLon * cos(latMidRad) * EARTH_RADIUS_M
-        val dy = dLat * EARTH_RADIUS_M
-        return sqrt(dx * dx + dy * dy)
-    }
-
     companion object {
         private const val TRACK_PREFIX = "hr_gps_"
-        private const val EARTH_RADIUS_M = 6_371_000.0
     }
 }

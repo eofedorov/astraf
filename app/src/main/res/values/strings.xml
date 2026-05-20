@@ -37,6 +37,7 @@
     <string name="finish_dialog_confirm">Завершить</string>
     <string name="finish_dialog_cancel">Отмена</string>
     <string name="notification_title_paused">Запись на паузе</string>
+    <string name="notification_title_waiting_gps">Ожидание GPS…</string>
     <string name="found_devices">Найденные устройства</string>
 
     <string name="map_recenter">Центрировать на моей позиции</string>

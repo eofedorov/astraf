@@ -65,7 +65,7 @@ fun RideRecordingControls(
                         )
                     }
                 }
-                RecordingPhase.Recording -> {
+                RecordingPhase.WaitingForGps, RecordingPhase.Recording -> {
                     FilledIconButton(onClick = onPauseLogging) {
                         Icon(
                             imageVector = Icons.Default.Pause,
@@ -92,7 +92,6 @@ fun RideRecordingControls(
             }
         }
 
-        // Балансировка, чтобы play/pause оставался по центру экрана.
         Box(modifier = Modifier.size(48.dp))
     }
 }

@@ -78,3 +78,22 @@ fun buildRideCompactMetricsLine(
     formatAvgSpeedShort(averageSpeedKmh),
     formatDuration(durationMillis),
 ).joinToString(" | ")
+
+fun buildGpsStatusLine(
+    waitingForGps: Boolean,
+    rawAccuracyMeters: Float?,
+    debugLine: String,
+): String {
+    if (waitingForGps) {
+        val accuracy = rawAccuracyMeters?.let { "±${it.roundToInt()} м" } ?: "нет fix"
+        return "Ожидание GPS ($accuracy) · $debugLine"
+    }
+    return debugLine
+}
+
+fun buildGpsDebugLine(
+    raw: Int,
+    accepted: Int,
+    rejected: Int,
+    segments: Int,
+): String = "GPS: $accepted/$raw acc, rej $rejected, seg $segments"

@@ -20,17 +20,19 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.astraf.hrgpslogger.LoggerSession
 import com.astraf.hrgpslogger.R
 import com.astraf.hrgpslogger.RecordingPhase
+import com.astraf.hrgpslogger.ui.buildGpsDebugLine
+import com.astraf.hrgpslogger.ui.buildGpsStatusLine
+import com.astraf.hrgpslogger.ui.buildRideCompactMetricsLine
 import com.astraf.hrgpslogger.ui.components.RideCompactMetricsBar
+import com.astraf.hrgpslogger.ui.components.RideGpsStatusBar
 import com.astraf.hrgpslogger.ui.components.RideMapView
 import com.astraf.hrgpslogger.ui.components.RideMetricCell
 import com.astraf.hrgpslogger.ui.components.RideMetricsFullscreenGrid
 import com.astraf.hrgpslogger.ui.components.RideRecordingControls
-import com.astraf.hrgpslogger.ui.buildRideCompactMetricsLine
 import com.astraf.hrgpslogger.ui.formatCurrentTime
 import com.astraf.hrgpslogger.ui.formatDistanceNumber
 import com.astraf.hrgpslogger.ui.formatDistanceUnit
 import com.astraf.hrgpslogger.ui.formatDuration
-import com.astraf.hrgpslogger.ui.formatSpeedKmh
 import com.astraf.hrgpslogger.ui.formatSpeedKmhNumber
 import kotlinx.coroutines.delay
 
@@ -47,6 +49,9 @@ fun RideScreen(
 ) {
     val heartRate by session.bleClient.heartRateBpm.collectAsStateWithLifecycle()
     val tripStats by session.tripStatsTracker.stats.collectAsStateWithLifecycle()
+    val gpsDebug by session.gpsRideController.debugStats.collectAsStateWithLifecycle()
+    val waitingForGps by session.gpsRideController.waitingForFirstFix.collectAsStateWithLifecycle()
+    val rawLocation by session.locationTracker.location.collectAsStateWithLifecycle()
 
     var mapCollapsed by rememberSaveable { mutableStateOf(false) }
     val mapVisible = isMapActive && !mapCollapsed
@@ -86,6 +91,20 @@ fun RideScreen(
 
     val bpmUnit = stringResource(R.string.bpm_unit)
     val speedUnit = "км/ч"
+    val showGpsBar = recordingPhase == RecordingPhase.WaitingForGps ||
+        recordingPhase == RecordingPhase.Recording
+    val debugLine = buildGpsDebugLine(
+        raw = gpsDebug.rawPointsCount,
+        accepted = gpsDebug.acceptedPointsCount,
+        rejected = gpsDebug.rejectedPointsCount,
+        segments = gpsDebug.segmentsCount,
+    )
+    val gpsStatusLine = buildGpsStatusLine(
+        waitingForGps = waitingForGps,
+        rawAccuracyMeters = rawLocation?.accuracyMeters,
+        debugLine = debugLine,
+    )
+
     val fullscreenCells = listOf(
         RideMetricCell(
             label = stringResource(R.string.metric_label_duration),
@@ -131,6 +150,10 @@ fun RideScreen(
     )
 
     Column(modifier = modifier.fillMaxSize()) {
+        if (showGpsBar) {
+            RideGpsStatusBar(line = gpsStatusLine)
+        }
+
         Box(
             modifier = Modifier
                 .weight(1f)
@@ -146,7 +169,8 @@ fun RideScreen(
                 mapVisible -> {
                     RideMapView(
                         location = session.locationTracker.location,
-                        trackPoints = session.activeTrackStore.points,
+                        acceptedPoint = session.gpsRideController.acceptedPoint,
+                        trackSegments = session.activeTrackStore.segments,
                         isMapActive = true,
                         modifier = Modifier.fillMaxSize(),
                     )

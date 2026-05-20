@@ -24,6 +24,7 @@ class LoggerSession(context: Context) {
     val csvLogger = CsvLogger(appContext)
     val tripStatsTracker = TripStatsTracker()
     val activeTrackStore = ActiveTrackStore()
+    val gpsRideController = GpsRideController()
 
     private var csvCollectJob: Job? = null
     private var speedPolicyJob: Job? = null
@@ -39,26 +40,31 @@ class LoggerSession(context: Context) {
 
     fun ensureTripStatsTracking() {
         if (csvLogger.phase.value != RecordingPhase.Recording) return
-        tripStatsTracker.ensureStarted(
-            scope = scope,
-            locationFlow = locationTracker.location,
-            speedFlow = locationTracker.speedKmh,
-        )
+        if (tripStatsTracker.stats.value.startedAtMillis == null) {
+            tripStatsTracker.start(scope)
+        } else {
+            tripStatsTracker.resume(scope)
+        }
     }
 
     fun restorePausedSession(fileName: String) {
         csvLogger.restorePausedSession(fileName)
         restoreTrackAndStatsFromFile(fileName)
+        gpsRideController.restoreFromAcceptedPoints(
+            points = TrackCsvParser.parseAcceptedPoints(File(appContext.filesDir, fileName)),
+            segmentsCount = activeTrackStore.segments.value.size,
+        )
         LoggingStateStore.getBleAddress(appContext)?.let { address ->
             if (bleClient.connectionState.value != BleConnectionState.READY) {
                 bleClient.connect(address)
             }
         }
         reconcileSpeedBasedRidePolicy()
+        startCollectJob()
     }
 
     fun ensureTrackLoadedFromFile(fileName: String) {
-        if (activeTrackStore.points.value.isNotEmpty()) return
+        if (activeTrackStore.segments.value.isNotEmpty()) return
         restoreTrackAndStatsFromFile(fileName)
     }
 
@@ -84,48 +90,59 @@ class LoggerSession(context: Context) {
             }
             csvLogger.phase.value == RecordingPhase.Paused -> {
                 csvLogger.resumeWriting()
-                csvLogger.currentFile()?.also { file ->
-                    restoreTrackAndStatsFromFile(file.name)
+                csvLogger.currentFile()?.also { restored ->
+                    restoreTrackAndStatsFromFile(restored.name)
+                    gpsRideController.forceNewSegment()
                 }
             }
             csvLogger.phase.value == RecordingPhase.Idle -> {
                 if (LoggingStateStore.isActive(appContext)) {
                     persistedFileName?.let { resumeFromPersistedFile(it) }
                 } else {
-                    activeTrackStore.clear()
-                    csvLogger.startLogging()
+                    beginNewSessionWaitingForGps()
+                    null
                 }
             }
             else -> csvLogger.currentFile()
         }
 
-        if (csvLogger.phase.value == RecordingPhase.Recording) {
-            if (tripStatsTracker.stats.value.startedAtMillis == null) {
-                tripStatsTracker.start(
-                    scope = scope,
-                    locationFlow = locationTracker.location,
-                    speedFlow = locationTracker.speedKmh,
-                )
-            } else {
-                tripStatsTracker.resume(
-                    scope = scope,
-                    locationFlow = locationTracker.location,
-                    speedFlow = locationTracker.speedKmh,
-                )
+        when (csvLogger.phase.value) {
+            RecordingPhase.Recording -> {
+                if (tripStatsTracker.stats.value.startedAtMillis == null) {
+                    tripStatsTracker.start(scope)
+                } else {
+                    tripStatsTracker.resume(scope)
+                }
+                startCollectJob()
+                reconcileSpeedBasedRidePolicy()
             }
-            startCollectJob()
-            reconcileSpeedBasedRidePolicy()
+            RecordingPhase.WaitingForGps -> {
+                startCollectJob()
+            }
+            else -> Unit
         }
 
-        return file?.name
+        return file?.name ?: csvLogger.currentFileName()
     }
 
     fun pauseCsvCollection(manualPause: Boolean = true) {
         csvCollectJob?.cancel()
         csvCollectJob = null
-        csvLogger.pauseLogging()
-        tripStatsTracker.pause()
-        persistLoggingState(paused = true, manualPauseWhilePaused = manualPause)
+        when (csvLogger.phase.value) {
+            RecordingPhase.WaitingForGps -> {
+                csvLogger.finishLogging()
+                tripStatsTracker.reset()
+                gpsRideController.reset()
+                LoggingStateStore.clear(appContext)
+            }
+            RecordingPhase.Recording -> {
+                csvLogger.pauseLogging()
+                tripStatsTracker.pause()
+                gpsRideController.forceNewSegment()
+                persistLoggingState(paused = true, manualPauseWhilePaused = manualPause)
+            }
+            else -> return
+        }
         reconcileSpeedBasedRidePolicy()
     }
 
@@ -133,11 +150,8 @@ class LoggerSession(context: Context) {
         if (csvLogger.phase.value != RecordingPhase.Paused) return
         csvLogger.currentFileName()?.let { restoreTrackAndStatsFromFile(it) }
         csvLogger.resumeWriting()
-        tripStatsTracker.resume(
-            scope = scope,
-            locationFlow = locationTracker.location,
-            speedFlow = locationTracker.speedKmh,
-        )
+        gpsRideController.forceNewSegment()
+        tripStatsTracker.resume(scope)
         startCollectJob()
         persistLoggingState(paused = false)
         reconcileSpeedBasedRidePolicy()
@@ -153,6 +167,7 @@ class LoggerSession(context: Context) {
         tripStatsTracker.stop()
         tripStatsTracker.reset()
         activeTrackStore.clear()
+        gpsRideController.reset()
         csvLogger.finishLogging()
     }
 
@@ -180,7 +195,7 @@ class LoggerSession(context: Context) {
 
         if (!csvLogger.hasActiveSession()) return
         when (csvLogger.phase.value) {
-            RecordingPhase.Idle -> return
+            RecordingPhase.Idle, RecordingPhase.WaitingForGps -> return
             RecordingPhase.Paused ->
                 if (LoggingStateStore.isManualPauseWhilePaused(appContext)) return
             RecordingPhase.Recording -> Unit
@@ -188,7 +203,7 @@ class LoggerSession(context: Context) {
 
         speedPolicyJob = combine(
             csvLogger.phase,
-            locationTracker.speedKmh,
+            gpsRideController.speedKmh,
             speedPolicyTickFlow(),
         ) { phase, speed, _ -> phase to speed }
             .onEach { (phase, speed) ->
@@ -232,7 +247,7 @@ class LoggerSession(context: Context) {
                             movingSinceElapsed = null
                         }
                     }
-                    RecordingPhase.Idle -> Unit
+                    RecordingPhase.Idle, RecordingPhase.WaitingForGps -> Unit
                 }
             }
             .launchIn(scope)
@@ -267,18 +282,29 @@ class LoggerSession(context: Context) {
         scope.cancel()
     }
 
+    private fun beginNewSessionWaitingForGps() {
+        activeTrackStore.clear()
+        gpsRideController.beginWaitingForFirstFix()
+        tripStatsTracker.reset()
+        tripStatsTracker.beginWaitingForGps()
+        csvLogger.beginWaitingForGps()
+    }
+
     private fun resumeFromPersistedFile(fileName: String): File? {
         val file = csvLogger.resumeLogging(fileName) ?: return null
         restoreTrackAndStatsFromFile(fileName)
+        val points = TrackCsvParser.parseAcceptedPoints(file)
+        gpsRideController.restoreFromAcceptedPoints(points, TrackCsvParser.segmentsCount(points))
         return file
     }
 
     private fun restoreTrackAndStatsFromFile(fileName: String) {
         val file = File(appContext.filesDir, fileName)
         if (!file.exists()) return
-        activeTrackStore.restoreFromCsv(file)
+        val points = TrackCsvParser.parseAcceptedPoints(file)
+        activeTrackStore.restoreFromAcceptedPoints(points)
         parseTrackStartMillis(fileName)?.let { startedAtMillis ->
-            tripStatsTracker.restoreFromTrack(activeTrackStore.points.value, startedAtMillis)
+            tripStatsTracker.restoreFromAcceptedPoints(points, startedAtMillis)
         }
     }
 
@@ -292,12 +318,33 @@ class LoggerSession(context: Context) {
             locationTracker.location,
         ) { bpm, location -> bpm to location }
             .onEach { (bpm, location) ->
-                csvLogger.writeIfChanged(bpm, location)
-                location?.let { sample ->
-                    activeTrackStore.append(sample, csvLogger.phase.value)
+                if (location == null) return@onEach
+                when (val result = gpsRideController.processRaw(location)) {
+                    is GpsFilterResult.Accepted -> handleAcceptedPoint(result, bpm)
+                    is GpsFilterResult.Rejected -> Unit
                 }
             }
             .launchIn(scope)
+    }
+
+    private fun handleAcceptedPoint(result: GpsFilterResult.Accepted, bpm: Int?) {
+        if (csvLogger.phase.value == RecordingPhase.WaitingForGps) {
+            csvLogger.startLoggingAfterFirstFix()
+            tripStatsTracker.endWaitingForGps(result.point.timestampMillis)
+            tripStatsTracker.start(scope, startedAtMillis = result.point.timestampMillis)
+            persistLoggingState(paused = false)
+            reconcileSpeedBasedRidePolicy()
+        }
+
+        if (csvLogger.phase.value != RecordingPhase.Recording) return
+
+        csvLogger.writeAcceptedPoint(result.point, bpm)
+        activeTrackStore.appendAccepted(result.point, result.newSegment)
+        tripStatsTracker.onAcceptedPoint(
+            point = result.point,
+            newSegment = result.newSegment,
+            currentSpeedKmh = gpsRideController.speedKmh.value,
+        )
     }
 
     companion object {

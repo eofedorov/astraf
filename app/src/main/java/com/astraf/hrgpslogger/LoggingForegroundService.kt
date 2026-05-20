@@ -73,7 +73,12 @@ class LoggingForegroundService : Service() {
     }
 
     private fun startLogging(resume: Boolean) {
-        if (isRunning && session.csvLogger.phase.value == RecordingPhase.Recording) return
+        if (isRunning &&
+            (session.csvLogger.phase.value == RecordingPhase.Recording ||
+                session.csvLogger.phase.value == RecordingPhase.WaitingForGps)
+        ) {
+            return
+        }
 
         acquireWakeLock()
         session.ensureLocationTracking()
@@ -109,16 +114,25 @@ class LoggingForegroundService : Service() {
             return
         }
 
-        session.persistLoggingState(paused = false)
+        session.persistLoggingState(paused = session.csvLogger.phase.value == RecordingPhase.Paused)
         isRunning = true
         promoteForeground(recovering = showRecoveringInNotification)
         startNotificationUpdates()
     }
 
     private fun pauseLogging() {
-        if (session.csvLogger.phase.value != RecordingPhase.Recording) return
-        session.pauseCsvCollection(manualPause = true)
-        updateNotification(paused = true)
+        when (session.csvLogger.phase.value) {
+            RecordingPhase.Recording -> session.pauseCsvCollection(manualPause = true)
+            RecordingPhase.WaitingForGps -> session.stopCsvCollection()
+            else -> return
+        }
+        updateNotification(
+            paused = session.csvLogger.phase.value == RecordingPhase.Paused,
+            waitingForGps = session.csvLogger.phase.value == RecordingPhase.WaitingForGps,
+        )
+        if (!session.csvLogger.hasActiveSession()) {
+            stopLoggingAndSelf()
+        }
     }
 
     private fun resumeLogging() {
@@ -147,6 +161,7 @@ class LoggingForegroundService : Service() {
         val notification = buildNotification(
             recovering = recovering,
             paused = session.csvLogger.phase.value == RecordingPhase.Paused,
+            waitingForGps = session.csvLogger.phase.value == RecordingPhase.WaitingForGps,
         )
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             val type = ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION or
@@ -173,6 +188,7 @@ class LoggingForegroundService : Service() {
                 updateNotification(
                     recovering = showRecoveringInNotification,
                     paused = phase == RecordingPhase.Paused,
+                    waitingForGps = phase == RecordingPhase.WaitingForGps,
                 )
             }
             .launchIn(serviceScope)
@@ -181,9 +197,10 @@ class LoggingForegroundService : Service() {
     private fun updateNotification(
         recovering: Boolean = false,
         paused: Boolean = session.csvLogger.phase.value == RecordingPhase.Paused,
+        waitingForGps: Boolean = session.csvLogger.phase.value == RecordingPhase.WaitingForGps,
     ) {
         val manager = getSystemService(NotificationManager::class.java)
-        manager.notify(NOTIFICATION_ID, buildNotification(recovering, paused))
+        manager.notify(NOTIFICATION_ID, buildNotification(recovering, paused, waitingForGps))
     }
 
     private fun acquireWakeLock() {
@@ -221,9 +238,11 @@ class LoggingForegroundService : Service() {
     private fun buildNotification(
         recovering: Boolean = false,
         paused: Boolean = false,
+        waitingForGps: Boolean = false,
     ): Notification {
         val title = when {
             recovering -> getString(R.string.notification_title_recovering)
+            waitingForGps -> getString(R.string.notification_title_waiting_gps)
             paused -> getString(R.string.notification_title_paused)
             else -> getString(R.string.notification_title)
         }

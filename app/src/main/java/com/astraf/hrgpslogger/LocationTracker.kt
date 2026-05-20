@@ -12,22 +12,12 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
-data class LocationSample(
-    val latitude: Double,
-    val longitude: Double,
-    val accuracyMeters: Float,
-    val timestampMillis: Long,
-)
-
 class LocationTracker(context: Context) {
 
     private val fusedClient = LocationServices.getFusedLocationProviderClient(context)
-    private val speedCalculator = SpeedCalculator()
 
     private val _location = MutableStateFlow<LocationSample?>(null)
     val location: StateFlow<LocationSample?> = _location.asStateFlow()
-
-    val speedKmh: StateFlow<Float?> = speedCalculator.speedKmh
 
     private val _statusMessage = MutableStateFlow("GPS не запущен")
     val statusMessage: StateFlow<String> = _statusMessage.asStateFlow()
@@ -48,13 +38,16 @@ class LocationTracker(context: Context) {
             val sample = LocationSample(
                 latitude = location.latitude,
                 longitude = location.longitude,
-                accuracyMeters = location.accuracy,
                 timestampMillis = location.time,
+                accuracyMeters = location.accuracy.takeIf { location.hasAccuracy() },
+                altitudeMeters = location.altitude.takeIf { location.hasAltitude() },
+                speedMps = location.speed.takeIf { location.hasSpeed() },
+                bearingDegrees = location.bearing.takeIf { location.hasBearing() },
             )
-            val gpsSpeedMps = if (location.hasSpeed()) location.speed else null
-            speedCalculator.update(sample, gpsSpeedMps)
             _location.value = sample
-            _statusMessage.value = "GPS: ${"%.5f".format(location.latitude)}, ${"%.5f".format(location.longitude)}"
+            val accuracyText = sample.accuracyMeters?.let { " ±${"%.0f".format(it)}м" }.orEmpty()
+            _statusMessage.value =
+                "GPS: ${"%.5f".format(location.latitude)}, ${"%.5f".format(location.longitude)}$accuracyText"
         }
     }
 
@@ -74,7 +67,6 @@ class LocationTracker(context: Context) {
         if (!isTracking) return
         fusedClient.removeLocationUpdates(callback)
         isTracking = false
-        speedCalculator.reset()
         _statusMessage.value = "GPS остановлен"
     }
 

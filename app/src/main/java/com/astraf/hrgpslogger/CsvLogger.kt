@@ -25,14 +25,29 @@ class CsvLogger(private val context: Context) {
     val currentFilePath: StateFlow<String?> = _currentFilePath.asStateFlow()
 
     private var writer: BufferedWriter? = null
-    private var lastBpm: Int? = null
-    private var lastLocation: LocationSample? = null
+    private var pendingFileName: String? = null
 
     private val isoFormatter = DateTimeFormatter.ISO_INSTANT
 
+    fun beginWaitingForGps() {
+        if (_phase.value != RecordingPhase.Idle) return
+        pendingFileName = "hr_gps_${System.currentTimeMillis()}.csv"
+        _phase.value = RecordingPhase.WaitingForGps
+        _isLogging.value = false
+        _currentFilePath.value = null
+    }
+
+    fun startLoggingAfterFirstFix(): File? {
+        if (_phase.value != RecordingPhase.WaitingForGps) return currentFile()
+        val fileName = pendingFileName ?: "hr_gps_${System.currentTimeMillis()}.csv"
+        val file = File(context.filesDir, fileName)
+        openNewFile(file)
+        pendingFileName = null
+        return file
+    }
+
     fun startLogging(): File? {
         if (_phase.value != RecordingPhase.Idle) return currentFile()
-
         val fileName = "hr_gps_${System.currentTimeMillis()}.csv"
         val file = File(context.filesDir, fileName)
         openNewFile(file)
@@ -47,15 +62,14 @@ class CsvLogger(private val context: Context) {
         writer = BufferedWriter(
             OutputStreamWriter(FileOutputStream(file, true), StandardCharsets.UTF_8),
         )
-        lastBpm = null
-        lastLocation = null
         _isLogging.value = true
         _phase.value = RecordingPhase.Recording
         _currentFilePath.value = file.absolutePath
+        pendingFileName = null
         return file
     }
 
-    fun currentFileName(): String? = currentFile()?.name
+    fun currentFileName(): String? = currentFile()?.name ?: pendingFileName
 
     fun hasActiveSession(): Boolean = _phase.value != RecordingPhase.Idle
 
@@ -63,25 +77,24 @@ class CsvLogger(private val context: Context) {
         val output = BufferedWriter(
             OutputStreamWriter(FileOutputStream(file, false), StandardCharsets.UTF_8),
         )
-        output.write("timestamp,bpm,latitude,longitude,accuracy_m\n")
+        output.write(CSV_HEADER)
+        output.newLine()
         output.flush()
         writer = output
-        lastBpm = null
-        lastLocation = null
         _isLogging.value = true
         _phase.value = RecordingPhase.Recording
         _currentFilePath.value = file.absolutePath
+        pendingFileName = null
     }
 
     fun restorePausedSession(fileName: String) {
         val file = File(context.filesDir, fileName)
         if (!file.exists()) return
         closeWriter()
-        lastBpm = null
-        lastLocation = null
         _isLogging.value = false
         _phase.value = RecordingPhase.Paused
         _currentFilePath.value = file.absolutePath
+        pendingFileName = null
     }
 
     fun pauseLogging() {
@@ -103,11 +116,10 @@ class CsvLogger(private val context: Context) {
 
     fun finishLogging() {
         closeWriter()
-        lastBpm = null
-        lastLocation = null
         _isLogging.value = false
         _phase.value = RecordingPhase.Idle
         _currentFilePath.value = null
+        pendingFileName = null
     }
 
     private fun closeWriter() {
@@ -125,25 +137,22 @@ class CsvLogger(private val context: Context) {
         finishLogging()
     }
 
-    fun writeIfChanged(bpm: Int?, location: LocationSample?) {
+    fun writeAcceptedPoint(point: AcceptedGpsPoint, bpm: Int?) {
         if (!_isLogging.value) return
 
-        val bpmChanged = bpm != null && bpm != lastBpm
-        val locationChanged = location != null && location != lastLocation
-        if (!bpmChanged && !locationChanged) return
+        val gpsTimestamp = isoFormatter.format(
+            Instant.ofEpochMilli(point.timestampMillis).atOffset(ZoneOffset.UTC),
+        )
+        val line = listOf(
+            gpsTimestamp,
+            point.segmentId.toString(),
+            point.latitude.toString(),
+            point.longitude.toString(),
+            point.accuracyMeters.toString(),
+            point.derivedSpeedKmh?.toString().orEmpty(),
+            bpm?.toString().orEmpty(),
+        ).joinToString(",")
 
-        if (bpm != null) lastBpm = bpm
-        if (location != null) lastLocation = location
-
-        val timestamp = isoFormatter.format(Instant.now().atOffset(ZoneOffset.UTC))
-        val lat = location?.latitude?.toString() ?: lastLocation?.latitude?.toString() ?: ""
-        val lon = location?.longitude?.toString() ?: lastLocation?.longitude?.toString() ?: ""
-        val accuracy = location?.accuracyMeters?.toString()
-            ?: lastLocation?.accuracyMeters?.toString()
-            ?: ""
-        val bpmValue = bpm?.toString() ?: lastBpm?.toString() ?: ""
-
-        val line = listOf(timestamp, bpmValue, lat, lon, accuracy).joinToString(",")
         try {
             writer?.apply {
                 write(line)
@@ -162,5 +171,10 @@ class CsvLogger(private val context: Context) {
     fun currentFile(): File? {
         val path = _currentFilePath.value ?: return null
         return File(path)
+    }
+
+    companion object {
+        const val CSV_HEADER =
+            "gps_timestamp,segment_id,latitude,longitude,accuracy_m,derived_speed_kmh,bpm"
     }
 }

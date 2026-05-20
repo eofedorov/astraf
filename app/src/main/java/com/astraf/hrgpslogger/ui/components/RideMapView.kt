@@ -19,6 +19,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.Lifecycle
@@ -68,6 +69,7 @@ fun RideMapView(
     trackSegments: StateFlow<List<TrackSegment>>,
     isMapActive: Boolean,
     modifier: Modifier = Modifier,
+    controlsBottomPadding: Dp = 12.dp,
 ) {
     val lifecycleOwner = LocalLifecycleOwner.current
     val locationSample by location.collectAsStateWithLifecycle()
@@ -214,7 +216,7 @@ fun RideMapView(
             },
             modifier = Modifier
                 .align(Alignment.BottomEnd)
-                .padding(12.dp),
+                .padding(end = 12.dp, bottom = controlsBottomPadding),
         ) {
             Icon(
                 imageVector = Icons.Default.MyLocation,

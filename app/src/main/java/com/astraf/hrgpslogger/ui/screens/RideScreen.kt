@@ -1,9 +1,12 @@
 package com.astraf.hrgpslogger.ui.screens
 
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -14,27 +17,29 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.astraf.hrgpslogger.LoggerSession
 import com.astraf.hrgpslogger.R
 import com.astraf.hrgpslogger.RecordingPhase
-import com.astraf.hrgpslogger.ui.buildGpsDebugLine
-import com.astraf.hrgpslogger.ui.buildGpsStatusLine
-import com.astraf.hrgpslogger.ui.buildRideCompactMetricsLine
-import com.astraf.hrgpslogger.ui.components.RideCompactMetricsBar
-import com.astraf.hrgpslogger.ui.components.RideGpsStatusBar
 import com.astraf.hrgpslogger.ui.components.RideMapView
 import com.astraf.hrgpslogger.ui.components.RideMetricCell
 import com.astraf.hrgpslogger.ui.components.RideMetricsFullscreenGrid
 import com.astraf.hrgpslogger.ui.components.RideRecordingControls
+import com.astraf.hrgpslogger.ui.components.RideTopMetricCards
 import com.astraf.hrgpslogger.ui.formatCurrentTime
 import com.astraf.hrgpslogger.ui.formatDistanceNumber
 import com.astraf.hrgpslogger.ui.formatDistanceUnit
 import com.astraf.hrgpslogger.ui.formatDuration
 import com.astraf.hrgpslogger.ui.formatSpeedKmhNumber
 import kotlinx.coroutines.delay
+
+private val RideControlsHeight = 80.dp
+private val RideControlsBottomPadding = 8.dp
+private val MapRecenterBottomExtra = 12.dp
 
 @Composable
 fun RideScreen(
@@ -49,9 +54,6 @@ fun RideScreen(
 ) {
     val heartRate by session.bleClient.heartRateBpm.collectAsStateWithLifecycle()
     val tripStats by session.tripStatsTracker.stats.collectAsStateWithLifecycle()
-    val gpsDebug by session.gpsRideController.debugStats.collectAsStateWithLifecycle()
-    val waitingForGps by session.gpsRideController.waitingForFirstFix.collectAsStateWithLifecycle()
-    val rawLocation by session.locationTracker.location.collectAsStateWithLifecycle()
 
     var mapCollapsed by rememberSaveable { mutableStateOf(false) }
     val mapVisible = isMapActive && !mapCollapsed
@@ -90,20 +92,7 @@ fun RideScreen(
     }
 
     val bpmUnit = stringResource(R.string.bpm_unit)
-    val speedUnit = "км/ч"
-    val showGpsBar = recordingPhase == RecordingPhase.WaitingForGps ||
-        recordingPhase == RecordingPhase.Recording
-    val debugLine = buildGpsDebugLine(
-        raw = gpsDebug.rawPointsCount,
-        accepted = gpsDebug.acceptedPointsCount,
-        rejected = gpsDebug.rejectedPointsCount,
-        segments = gpsDebug.segmentsCount,
-    )
-    val gpsStatusLine = buildGpsStatusLine(
-        waitingForGps = waitingForGps,
-        rawAccuracyMeters = rawLocation?.accuracyMeters,
-        debugLine = debugLine,
-    )
+    val speedUnit = stringResource(R.string.speed_kmh_unit)
 
     val fullscreenCells = listOf(
         RideMetricCell(
@@ -141,45 +130,40 @@ fun RideScreen(
         ),
     )
 
-    val compactLine = buildRideCompactMetricsLine(
-        currentSpeedKmh = tripStats.currentSpeedKmh,
-        heartRateBpm = heartRate,
-        distanceMeters = tripStats.distanceMeters,
-        averageSpeedKmh = tripStats.averageSpeedKmh,
-        durationMillis = tripStats.durationMillis,
-    )
+    val mapRecenterBottomPadding = RideControlsHeight + RideControlsBottomPadding + MapRecenterBottomExtra
 
-    Column(modifier = modifier.fillMaxSize()) {
-        if (showGpsBar) {
-            RideGpsStatusBar(line = gpsStatusLine)
-        }
-
-        Box(
-            modifier = Modifier
-                .weight(1f)
-                .fillMaxWidth(),
-        ) {
-            when {
-                mapCollapsed -> {
-                    RideMetricsFullscreenGrid(
-                        cells = fullscreenCells,
-                        modifier = Modifier.fillMaxSize(),
-                    )
-                }
-                mapVisible -> {
-                    RideMapView(
-                        location = session.locationTracker.location,
-                        acceptedPoint = session.gpsRideController.acceptedPoint,
-                        trackSegments = session.activeTrackStore.segments,
-                        isMapActive = true,
-                        modifier = Modifier.fillMaxSize(),
-                    )
-                }
+    Box(modifier = modifier.fillMaxSize()) {
+        when {
+            mapCollapsed -> {
+                RideMetricsFullscreenGrid(
+                    cells = fullscreenCells,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            }
+            mapVisible -> {
+                RideMapView(
+                    location = session.locationTracker.location,
+                    acceptedPoint = session.gpsRideController.acceptedPoint,
+                    trackSegments = session.activeTrackStore.segments,
+                    isMapActive = true,
+                    controlsBottomPadding = mapRecenterBottomPadding,
+                    modifier = Modifier.fillMaxSize(),
+                )
             }
         }
 
         if (!mapCollapsed) {
-            RideCompactMetricsBar(line = compactLine)
+            RideTopMetricCards(
+                speedValue = formatSpeedKmhNumber(tripStats.currentSpeedKmh),
+                speedUnit = tripStats.currentSpeedKmh?.let { speedUnit },
+                heartRateValue = heartRate?.toString() ?: "—",
+                heartRateUnit = heartRate?.let { bpmUnit },
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .fillMaxWidth()
+                    .windowInsetsPadding(WindowInsets.safeDrawing)
+                    .padding(horizontal = 12.dp, vertical = 12.dp),
+            )
         }
 
         RideRecordingControls(
@@ -190,6 +174,9 @@ fun RideScreen(
             onPauseLogging = onPauseLogging,
             onResumeLogging = onResumeLogging,
             onFinishClick = { showFinishDialog = true },
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(bottom = RideControlsBottomPadding),
         )
     }
 }

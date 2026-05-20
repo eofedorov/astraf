@@ -205,6 +205,8 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+private val TabBarHeight = 48.dp
+
 private enum class AppTab {
     Settings,
     Ride,
@@ -274,11 +276,7 @@ private fun LoggerAppScreen(
             )
         },
     ) { padding ->
-        val contentModifier = Modifier
-            .fillMaxSize()
-            .padding(padding)
-
-        Box(modifier = contentModifier) {
+        Box(modifier = Modifier.fillMaxSize()) {
             SettingsScreen(
                 session = session,
                 stravaIntegration = stravaIntegration,
@@ -287,6 +285,7 @@ private fun LoggerAppScreen(
                 onOpenBatterySettings = onOpenBatterySettings,
                 modifier = Modifier
                     .fillMaxSize()
+                    .padding(padding)
                     .tabPanelVisible(selectedTab == AppTab.Settings)
                     .tabZIndex(selectedTab == AppTab.Settings),
             )
@@ -300,6 +299,7 @@ private fun LoggerAppScreen(
                 onFinishLogging = onFinishLogging,
                 modifier = Modifier
                     .fillMaxSize()
+                    .padding(bottom = TabBarHeight)
                     .tabPanelVisible(selectedTab == AppTab.Ride)
                     .tabZIndex(selectedTab == AppTab.Ride),
             )
@@ -308,6 +308,7 @@ private fun LoggerAppScreen(
                 stravaIntegration = stravaIntegration,
                 modifier = Modifier
                     .fillMaxSize()
+                    .padding(padding)
                     .tabPanelVisible(selectedTab == AppTab.Tracks)
                     .tabZIndex(selectedTab == AppTab.Tracks),
             )

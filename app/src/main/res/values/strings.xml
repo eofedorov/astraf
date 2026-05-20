@@ -96,4 +96,14 @@
     <string name="strava_upload_success">Загружено в Strava (activity %1$d)</string>
     <string name="strava_upload_failed">Ошибка Strava: %1$s</string>
     <string name="strava_upload_active_track">Нельзя отправить трек, который ещё записывается</string>
+
+    <string name="crash_logs_section_title">Crash-логи</string>
+    <string name="crash_logs_empty">Сохранённых падений нет.</string>
+    <string name="crash_logs_count">Сохранено: %1$d</string>
+    <string name="crash_logs_latest">Последний: %1$s</string>
+    <string name="crash_logs_share">Поделиться последним</string>
+    <string name="crash_logs_clear">Очистить</string>
+    <string name="crash_logs_share_subject">HR GPS Logger crash log</string>
+    <string name="crash_logs_share_chooser">Отправить crash-лог</string>
+    <string name="crash_logs_nothing_to_share">Нет crash-лога для отправки</string>
 </resources>

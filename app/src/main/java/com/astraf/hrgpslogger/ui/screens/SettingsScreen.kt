@@ -30,10 +30,13 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.astraf.hrgpslogger.BleConnectionState
 import com.astraf.hrgpslogger.BleHeartRateClient
+import com.astraf.hrgpslogger.CrashLogEntry
+import com.astraf.hrgpslogger.CrashLogStore
 import com.astraf.hrgpslogger.LoggerSession
 import com.astraf.hrgpslogger.R
 import com.astraf.hrgpslogger.strava.StravaIntegration
 import com.astraf.hrgpslogger.strava.StravaLinkState
+import com.astraf.hrgpslogger.ui.formatTrackDateTime
 import kotlinx.coroutines.launch
 
 @Composable
@@ -43,6 +46,8 @@ fun SettingsScreen(
     showBatteryOptimizationButton: Boolean,
     onConnect: () -> Unit,
     onOpenBatterySettings: () -> Unit,
+    onShareLatestCrashLog: () -> Unit,
+    onClearCrashLogs: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -54,6 +59,8 @@ fun SettingsScreen(
     val bleStatus by bleClient.statusMessage.collectAsStateWithLifecycle()
     val stravaLinkState by stravaIntegration.linkState.collectAsStateWithLifecycle()
     val stravaLinkMessage by stravaIntegration.linkMessage.collectAsStateWithLifecycle()
+    var crashLogsRevision by remember { mutableStateOf(0) }
+    val crashLogs = remember(crashLogsRevision) { CrashLogStore.list(context) }
 
     val statusLine = formatBleStatusLine(
         bleClient = bleClient,
@@ -106,12 +113,76 @@ fun SettingsScreen(
             },
         )
 
+        CrashLogsCard(
+            crashLogs = crashLogs,
+            onShareLatest = onShareLatestCrashLog,
+            onClear = {
+                onClearCrashLogs()
+                crashLogsRevision++
+            },
+        )
+
         if (showBatteryOptimizationButton) {
             Button(
                 onClick = onOpenBatterySettings,
                 modifier = Modifier.fillMaxWidth(),
             ) {
                 Text(stringResource(R.string.battery_optimization))
+            }
+        }
+    }
+}
+
+@Composable
+private fun CrashLogsCard(
+    crashLogs: List<CrashLogEntry>,
+    onShareLatest: () -> Unit,
+    onClear: () -> Unit,
+) {
+    val latest = crashLogs.firstOrNull()
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(
+            modifier = Modifier.padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Text(
+                text = stringResource(R.string.crash_logs_section_title),
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+            )
+            if (crashLogs.isEmpty()) {
+                Text(
+                    text = stringResource(R.string.crash_logs_empty),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            } else {
+                Text(
+                    text = stringResource(R.string.crash_logs_count, crashLogs.size),
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                latest?.let { entry ->
+                    Text(
+                        text = stringResource(
+                            R.string.crash_logs_latest,
+                            formatTrackDateTime(entry.timestampMillis),
+                        ),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Button(
+                    onClick = onShareLatest,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text(stringResource(R.string.crash_logs_share))
+                }
+                OutlinedButton(
+                    onClick = onClear,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text(stringResource(R.string.crash_logs_clear))
+                }
             }
         }
     }

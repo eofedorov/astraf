@@ -43,6 +43,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.astraf.hrgpslogger.CrashLogSharing
+import com.astraf.hrgpslogger.CrashLogStore
 import com.astraf.hrgpslogger.RecordingPhase
 import com.astraf.hrgpslogger.ui.screens.RideScreen
 import com.astraf.hrgpslogger.ui.screens.SettingsScreen
@@ -109,6 +111,8 @@ class MainActivity : ComponentActivity() {
                     onFinishLogging = { stopBackgroundLogging() },
                     onRestorePausedSession = { restorePausedSession() },
                     onOpenBatterySettings = { openBatteryOptimizationSettings() },
+                    onShareLatestCrashLog = { shareLatestCrashLog() },
+                    onClearCrashLogs = { CrashLogStore.clear(this@MainActivity) },
                 )
             }
         }
@@ -191,6 +195,16 @@ class MainActivity : ComponentActivity() {
         session.restorePausedSession(fileName)
     }
 
+    private fun shareLatestCrashLog() {
+        val shareIntent = CrashLogSharing.buildShareIntent(this) ?: return
+        startActivity(
+            Intent.createChooser(
+                shareIntent,
+                getString(R.string.crash_logs_share_chooser),
+            ),
+        )
+    }
+
     private fun openBatteryOptimizationSettings() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return
         val packageUri = Uri.parse("package:$packageName")
@@ -227,6 +241,8 @@ private fun LoggerAppScreen(
     onFinishLogging: () -> Unit,
     onRestorePausedSession: () -> Unit,
     onOpenBatterySettings: () -> Unit,
+    onShareLatestCrashLog: () -> Unit,
+    onClearCrashLogs: () -> Unit,
 ) {
     val recordingPhase by session.csvLogger.phase.collectAsStateWithLifecycle()
 
@@ -283,6 +299,8 @@ private fun LoggerAppScreen(
                 showBatteryOptimizationButton = showBatteryOptimizationButton,
                 onConnect = onConnectBle,
                 onOpenBatterySettings = onOpenBatterySettings,
+                onShareLatestCrashLog = onShareLatestCrashLog,
+                onClearCrashLogs = onClearCrashLogs,
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(padding)

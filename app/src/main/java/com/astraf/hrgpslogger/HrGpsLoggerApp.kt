@@ -12,6 +12,7 @@ class HrGpsLoggerApp : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        CrashLogManager.install(this)
         MapLibre.getInstance(this)
         // Тайлы кешируются в приватном каталоге приложения (FileSource default path).
         FileSource.getInstance(this)

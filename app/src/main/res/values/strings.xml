@@ -98,6 +98,7 @@
     <string name="strava_upload_active_track">Нельзя отправить трек, который ещё записывается</string>
 
     <string name="crash_logs_section_title">Crash-логи</string>
+    <string name="crash_logs_capture_enabled">Записывать падения</string>
     <string name="crash_logs_empty">Сохранённых падений нет.</string>
     <string name="crash_logs_count">Сохранено: %1$d</string>
     <string name="crash_logs_latest">Последний: %1$s</string>

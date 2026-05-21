@@ -2,6 +2,7 @@ package com.astraf.hrgpslogger.ui.screens
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -12,6 +13,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -20,7 +22,10 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -31,6 +36,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.astraf.hrgpslogger.BleConnectionState
 import com.astraf.hrgpslogger.BleHeartRateClient
 import com.astraf.hrgpslogger.CrashLogEntry
+import com.astraf.hrgpslogger.CrashLogPrefs
 import com.astraf.hrgpslogger.CrashLogStore
 import com.astraf.hrgpslogger.LoggerSession
 import com.astraf.hrgpslogger.R
@@ -60,6 +66,9 @@ fun SettingsScreen(
     val stravaLinkState by stravaIntegration.linkState.collectAsStateWithLifecycle()
     val stravaLinkMessage by stravaIntegration.linkMessage.collectAsStateWithLifecycle()
     var crashLogsRevision by remember { mutableStateOf(0) }
+    var crashCaptureEnabled by remember {
+        mutableStateOf(CrashLogPrefs.isCaptureEnabled(context))
+    }
     val crashLogs = remember(crashLogsRevision) { CrashLogStore.list(context) }
 
     val statusLine = formatBleStatusLine(
@@ -115,6 +124,11 @@ fun SettingsScreen(
 
         CrashLogsCard(
             crashLogs = crashLogs,
+            captureEnabled = crashCaptureEnabled,
+            onCaptureEnabledChange = { enabled ->
+                CrashLogPrefs.setCaptureEnabled(context, enabled)
+                crashCaptureEnabled = enabled
+            },
             onShareLatest = onShareLatestCrashLog,
             onClear = {
                 onClearCrashLogs()
@@ -136,20 +150,37 @@ fun SettingsScreen(
 @Composable
 private fun CrashLogsCard(
     crashLogs: List<CrashLogEntry>,
+    captureEnabled: Boolean,
+    onCaptureEnabledChange: (Boolean) -> Unit,
     onShareLatest: () -> Unit,
     onClear: () -> Unit,
 ) {
     val latest = crashLogs.firstOrNull()
+    val captureLabel = stringResource(R.string.crash_logs_capture_enabled)
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(
             modifier = Modifier.padding(12.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            Text(
-                text = stringResource(R.string.crash_logs_section_title),
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold,
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = stringResource(R.string.crash_logs_section_title),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.weight(1f),
+                )
+                Switch(
+                    checked = captureEnabled,
+                    onCheckedChange = onCaptureEnabledChange,
+                    modifier = Modifier.semantics {
+                        contentDescription = captureLabel
+                    },
+                )
+            }
             if (crashLogs.isEmpty()) {
                 Text(
                     text = stringResource(R.string.crash_logs_empty),

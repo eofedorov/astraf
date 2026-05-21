@@ -25,10 +25,12 @@ object CrashLogManager {
             val appContext = context.applicationContext
             defaultHandler = Thread.getDefaultUncaughtExceptionHandler()
             Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
-                try {
-                    CrashLogStore.save(appContext, buildReport(appContext, thread, throwable))
-                } catch (_: Exception) {
-                    // ignore secondary failures while crashing
+                if (CrashLogPrefs.isCaptureEnabled(appContext)) {
+                    try {
+                        CrashLogStore.save(appContext, buildReport(appContext, thread, throwable))
+                    } catch (_: Exception) {
+                        // ignore secondary failures while crashing
+                    }
                 }
                 defaultHandler?.uncaughtException(thread, throwable)
             }

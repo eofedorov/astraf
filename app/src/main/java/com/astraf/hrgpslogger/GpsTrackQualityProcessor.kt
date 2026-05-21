@@ -63,6 +63,16 @@ class GpsTrackQualityProcessor(
 
         val previous = lastAccepted!!
         val deltaMs = raw.timestampMillis - previous.timestampMillis
+        val derivedSpeedKmh = calculateSpeedKmh(previous, raw, deltaMs)
+        if (derivedSpeedKmh != null) {
+            if (derivedSpeedKmh > stats.maxCalculatedSpeedKmh) {
+                stats = stats.copy(maxCalculatedSpeedKmh = derivedSpeedKmh)
+            }
+            if (derivedSpeedKmh > config.maxReasonableSpeedKmh) {
+                return reject(GpsRejectReason.IMPOSSIBLE_SPEED, raw)
+            }
+        }
+
         val newSegment = deltaMs > config.maxGapWithoutNewSegmentMs
         if (newSegment) {
             stats = stats.copy(
@@ -70,16 +80,6 @@ class GpsTrackQualityProcessor(
                 segmentsCount = stats.segmentsCount + 1,
             )
             currentSegmentId++
-        } else {
-            val derivedSpeedKmh = calculateSpeedKmh(previous, raw, deltaMs)
-            if (derivedSpeedKmh != null) {
-                if (derivedSpeedKmh > stats.maxCalculatedSpeedKmh) {
-                    stats = stats.copy(maxCalculatedSpeedKmh = derivedSpeedKmh)
-                }
-                if (derivedSpeedKmh > config.maxReasonableSpeedKmh) {
-                    return reject(GpsRejectReason.IMPOSSIBLE_SPEED, raw)
-                }
-            }
         }
 
         return accept(raw, newSegment)

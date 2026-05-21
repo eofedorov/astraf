@@ -110,6 +110,74 @@ class GpsTrackQualityProcessorTest {
     }
 
     @Test
+    fun gpsJamming_continuousGhostTrack_rejectsAllDistantPoints() {
+        val intervalMs = 1_500L
+        val stepM = rideStepMeters(speedKmh = 30f, intervalMs = intervalMs)
+        val lon = 37.618
+
+        var ts = 1_000L
+        var lat = 55.751
+        repeat(20) {
+            accept(raw(lat = lat, lon = lon, ts = ts, accuracy = 10f))
+            lat += metersToLatDelta(stepM)
+            ts += intervalMs
+        }
+
+        var ghostLat = lat + metersToLatDelta(10_000.0)
+        var ghostTs = ts
+        repeat(15) {
+            val result = processor.process(
+                raw(lat = ghostLat, lon = lon, ts = ghostTs, accuracy = 10f),
+            )
+            assertTrue("ts=$ghostTs: ожидали отклонение далёкой точки", result is GpsFilterResult.Rejected)
+            assertEquals(
+                GpsRejectReason.IMPOSSIBLE_SPEED,
+                (result as GpsFilterResult.Rejected).reason,
+            )
+            ghostLat += metersToLatDelta(stepM)
+            ghostTs += intervalMs
+        }
+
+        assertEquals(20, processor.debugStats.acceptedPointsCount)
+        assertEquals(1, processor.debugStats.segmentsCount)
+        assertEquals(15, processor.debugStats.rejectedByImpossibleSpeed)
+    }
+
+    @Test
+    fun gpsJamming_ghostTrackAfterTimeGap_rejectsAllDistantPoints() {
+        val intervalMs = 1_500L
+        val stepM = rideStepMeters(speedKmh = 30f, intervalMs = intervalMs)
+        val lon = 37.618
+
+        var ts = 1_000L
+        var lat = 55.751
+        repeat(20) {
+            accept(raw(lat = lat, lon = lon, ts = ts, accuracy = 10f))
+            lat += metersToLatDelta(stepM)
+            ts += intervalMs
+        }
+
+        var ghostLat = lat + metersToLatDelta(10_000.0)
+        var ghostTs = ts + config.maxGapWithoutNewSegmentMs + 1_000L
+        repeat(15) {
+            val result = processor.process(
+                raw(lat = ghostLat, lon = lon, ts = ghostTs, accuracy = 10f),
+            )
+            assertTrue("ts=$ghostTs: ожидали отклонение далёкой точки", result is GpsFilterResult.Rejected)
+            assertEquals(
+                GpsRejectReason.IMPOSSIBLE_SPEED,
+                (result as GpsFilterResult.Rejected).reason,
+            )
+            ghostLat += metersToLatDelta(stepM)
+            ghostTs += intervalMs
+        }
+
+        assertEquals(20, processor.debugStats.acceptedPointsCount)
+        assertEquals(1, processor.debugStats.segmentsCount)
+        assertEquals(15, processor.debugStats.rejectedByImpossibleSpeed)
+    }
+
+    @Test
     fun distanceCountsOnlyInsideSegment() {
         val points = listOf(
             raw(lat = 55.751, lon = 37.618, ts = 1_000L, accuracy = 10f),
@@ -133,6 +201,11 @@ class GpsTrackQualityProcessorTest {
         assertTrue(result is GpsFilterResult.Accepted)
         return (result as GpsFilterResult.Accepted).point
     }
+
+    private fun rideStepMeters(speedKmh: Float, intervalMs: Long): Double =
+        speedKmh / 3.6f * (intervalMs / 1000.0)
+
+    private fun metersToLatDelta(meters: Double): Double = meters / 111_000.0
 
     private fun raw(
         lat: Double,

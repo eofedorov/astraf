@@ -245,6 +245,7 @@ private fun LoggerAppScreen(
     onClearCrashLogs: () -> Unit,
 ) {
     val recordingPhase by session.csvLogger.phase.collectAsStateWithLifecycle()
+    val isAutoPaused by session.isAutoPaused.collectAsStateWithLifecycle()
 
     var selectedTab by rememberSaveable {
         mutableStateOf(if (loggingPersisted) AppTab.Ride else AppTab.Settings)
@@ -310,6 +311,7 @@ private fun LoggerAppScreen(
             RideScreen(
                 session = session,
                 recordingPhase = recordingPhase,
+                isAutoPaused = isAutoPaused,
                 isMapActive = selectedTab == AppTab.Ride,
                 onStartLogging = onStartLogging,
                 onPauseLogging = onPauseLogging,

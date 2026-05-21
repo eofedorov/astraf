@@ -24,6 +24,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.astraf.hrgpslogger.R
 import com.astraf.hrgpslogger.RecordingPhase
+import com.astraf.hrgpslogger.ui.theme.RideAutoPauseAccent
 import com.astraf.hrgpslogger.ui.theme.RideFloatingControlSurface
 import com.astraf.hrgpslogger.ui.theme.RidePrimaryControl
 import com.astraf.hrgpslogger.ui.theme.RideStopControl
@@ -36,6 +37,7 @@ fun RideRecordingControls(
     mapCollapsed: Boolean,
     onMapCollapsedChange: () -> Unit,
     recordingPhase: RecordingPhase,
+    isAutoPaused: Boolean = false,
     onStartLogging: () -> Unit,
     onPauseLogging: () -> Unit,
     onResumeLogging: () -> Unit,
@@ -95,11 +97,12 @@ fun RideRecordingControls(
                 }
             }
             RecordingPhase.Paused -> {
+                val pauseAccentColor = if (isAutoPaused) RideAutoPauseAccent else Color.White
                 FloatingActionButton(
                     onClick = onResumeLogging,
                     modifier = Modifier.size(CenterButtonSize),
                     containerColor = RidePrimaryControl,
-                    contentColor = Color.White,
+                    contentColor = pauseAccentColor,
                 ) {
                     Icon(
                         imageVector = Icons.Default.PlayArrow,

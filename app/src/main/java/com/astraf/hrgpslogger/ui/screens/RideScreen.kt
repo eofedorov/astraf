@@ -47,6 +47,7 @@ private val MapRecenterBottomExtra = 12.dp
 fun RideScreen(
     session: LoggerSession,
     recordingPhase: RecordingPhase,
+    isAutoPaused: Boolean = false,
     isMapActive: Boolean,
     onStartLogging: () -> Unit,
     onPauseLogging: () -> Unit,
@@ -177,6 +178,7 @@ fun RideScreen(
             mapCollapsed = mapCollapsed,
             onMapCollapsedChange = { mapCollapsed = !mapCollapsed },
             recordingPhase = recordingPhase,
+            isAutoPaused = isAutoPaused,
             onStartLogging = onStartLogging,
             onPauseLogging = onPauseLogging,
             onResumeLogging = onResumeLogging,

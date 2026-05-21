@@ -11,6 +11,8 @@ import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.IBinder
 import android.os.PowerManager
+import android.text.SpannableString
+import android.text.style.ForegroundColorSpan
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
 import kotlinx.coroutines.CoroutineScope
@@ -18,6 +20,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 
@@ -128,6 +131,7 @@ class LoggingForegroundService : Service() {
         }
         updateNotification(
             paused = session.csvLogger.phase.value == RecordingPhase.Paused,
+            autoPaused = session.isAutoPaused.value,
             waitingForGps = session.csvLogger.phase.value == RecordingPhase.WaitingForGps,
         )
         if (!session.csvLogger.hasActiveSession()) {
@@ -158,9 +162,11 @@ class LoggingForegroundService : Service() {
     }
 
     private fun promoteForeground(recovering: Boolean) {
+        val paused = session.csvLogger.phase.value == RecordingPhase.Paused
         val notification = buildNotification(
             recovering = recovering,
-            paused = session.csvLogger.phase.value == RecordingPhase.Paused,
+            paused = paused,
+            autoPaused = paused && session.isAutoPaused.value,
             waitingForGps = session.csvLogger.phase.value == RecordingPhase.WaitingForGps,
         )
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
@@ -179,8 +185,11 @@ class LoggingForegroundService : Service() {
 
     private fun startNotificationUpdates() {
         notificationUpdateJob?.cancel()
-        notificationUpdateJob = session.csvLogger.phase
-            .onEach { phase ->
+        notificationUpdateJob = combine(
+            session.csvLogger.phase,
+            session.isAutoPaused,
+        ) { phase, autoPaused -> phase to autoPaused }
+            .onEach { (phase, autoPaused) ->
                 if (phase == RecordingPhase.Recording) {
                     showRecoveringInNotification = false
                     session.persistLoggingState(paused = false)
@@ -188,6 +197,7 @@ class LoggingForegroundService : Service() {
                 updateNotification(
                     recovering = showRecoveringInNotification,
                     paused = phase == RecordingPhase.Paused,
+                    autoPaused = phase == RecordingPhase.Paused && autoPaused,
                     waitingForGps = phase == RecordingPhase.WaitingForGps,
                 )
             }
@@ -197,10 +207,11 @@ class LoggingForegroundService : Service() {
     private fun updateNotification(
         recovering: Boolean = false,
         paused: Boolean = session.csvLogger.phase.value == RecordingPhase.Paused,
+        autoPaused: Boolean = paused && session.isAutoPaused.value,
         waitingForGps: Boolean = session.csvLogger.phase.value == RecordingPhase.WaitingForGps,
     ) {
         val manager = getSystemService(NotificationManager::class.java)
-        manager.notify(NOTIFICATION_ID, buildNotification(recovering, paused, waitingForGps))
+        manager.notify(NOTIFICATION_ID, buildNotification(recovering, paused, autoPaused, waitingForGps))
     }
 
     private fun acquireWakeLock() {
@@ -238,13 +249,26 @@ class LoggingForegroundService : Service() {
     private fun buildNotification(
         recovering: Boolean = false,
         paused: Boolean = false,
+        autoPaused: Boolean = false,
         waitingForGps: Boolean = false,
     ): Notification {
-        val title = when {
+        val titleText = when {
             recovering -> getString(R.string.notification_title_recovering)
             waitingForGps -> getString(R.string.notification_title_waiting_gps)
             paused -> getString(R.string.notification_title_paused)
             else -> getString(R.string.notification_title)
+        }
+        val contentTitle: CharSequence = if (autoPaused) {
+            SpannableString(titleText).apply {
+                setSpan(
+                    ForegroundColorSpan(RIDE_AUTO_PAUSE_COLOR_ARGB),
+                    0,
+                    length,
+                    SpannableString.SPAN_INCLUSIVE_INCLUSIVE,
+                )
+            }
+        } else {
+            titleText
         }
 
         val openAppIntent = PendingIntent.getActivity(
@@ -275,7 +299,7 @@ class LoggingForegroundService : Service() {
 
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_notification)
-            .setContentTitle(title)
+            .setContentTitle(contentTitle)
             .setContentIntent(openAppIntent)
             .setOngoing(true)
             .setOnlyAlertOnce(true)

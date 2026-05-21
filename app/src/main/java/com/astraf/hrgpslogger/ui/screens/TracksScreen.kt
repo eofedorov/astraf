@@ -1,5 +1,6 @@
 package com.astraf.hrgpslogger.ui.screens
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -20,6 +21,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -30,6 +32,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.astraf.hrgpslogger.LoggerSession
 import com.astraf.hrgpslogger.R
 import com.astraf.hrgpslogger.RecordingPhase
+import com.astraf.hrgpslogger.TrackDetail
 import com.astraf.hrgpslogger.TrackRepository
 import com.astraf.hrgpslogger.TrackSummary
 import com.astraf.hrgpslogger.strava.StravaIntegration
@@ -38,12 +41,15 @@ import com.astraf.hrgpslogger.ui.formatDistanceMeters
 import com.astraf.hrgpslogger.ui.formatDuration
 import com.astraf.hrgpslogger.ui.formatElevationClimbMeters
 import com.astraf.hrgpslogger.ui.formatTrackDateTime
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 @Composable
 fun TracksScreen(
     session: LoggerSession,
     stravaIntegration: StravaIntegration,
+    isTabSelected: Boolean,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -53,11 +59,78 @@ fun TracksScreen(
     val uploadStatus by stravaIntegration.uploadStatus.collectAsStateWithLifecycle()
 
     var tracks by remember { mutableStateOf<List<TrackSummary>>(emptyList()) }
+    var selectedFileName by rememberSaveable { mutableStateOf<String?>(null) }
+    var trackDetail by remember { mutableStateOf<TrackDetail?>(null) }
+    var isDetailLoading by remember { mutableStateOf(false) }
+
+    fun reloadTracks() {
+        scope.launch {
+            val repository = TrackRepository(context)
+            val activePath = if (recordingPhase != RecordingPhase.Idle) csvPath else null
+            tracks = withContext(Dispatchers.IO) {
+                repository.listTracks(activeFilePath = activePath)
+            }
+        }
+    }
 
     LaunchedEffect(csvPath, recordingPhase) {
-        val repository = TrackRepository(context)
-        val activePath = if (recordingPhase != RecordingPhase.Idle) csvPath else null
-        tracks = repository.listTracks(activeFilePath = activePath)
+        reloadTracks()
+    }
+
+    LaunchedEffect(selectedFileName, csvPath, recordingPhase) {
+        val fileName = selectedFileName ?: run {
+            trackDetail = null
+            isDetailLoading = false
+            return@LaunchedEffect
+        }
+        isDetailLoading = true
+        trackDetail = withContext(Dispatchers.IO) {
+            val activePath = if (recordingPhase != RecordingPhase.Idle) csvPath else null
+            TrackRepository(context).loadTrackDetail(fileName, activePath)
+        }
+        isDetailLoading = false
+    }
+
+    if (selectedFileName != null) {
+        TrackDetailScreen(
+            detail = trackDetail,
+            isLoading = isDetailLoading,
+            isMapActive = isTabSelected,
+            stravaUploadStatus = uploadStatus,
+            onBack = { selectedFileName = null },
+            onRename = { newName ->
+                val fileName = selectedFileName ?: return@TrackDetailScreen
+                scope.launch {
+                    withContext(Dispatchers.IO) {
+                        TrackRepository(context).renameTrackDisplayName(fileName, newName)
+                    }
+                    trackDetail = withContext(Dispatchers.IO) {
+                        val activePath = if (recordingPhase != RecordingPhase.Idle) csvPath else null
+                        TrackRepository(context).loadTrackDetail(fileName, activePath)
+                    }
+                    reloadTracks()
+                }
+            },
+            onDelete = {
+                val fileName = selectedFileName ?: return@TrackDetailScreen
+                scope.launch {
+                    withContext(Dispatchers.IO) {
+                        TrackRepository(context).deleteTrack(fileName)
+                    }
+                    selectedFileName = null
+                    trackDetail = null
+                    reloadTracks()
+                }
+            },
+            onUploadToStrava = {
+                val fileName = selectedFileName ?: return@TrackDetailScreen
+                scope.launch {
+                    stravaIntegration.uploadTrack(fileName)
+                }
+            },
+            modifier = modifier,
+        )
+        return
     }
 
     Column(
@@ -100,6 +173,7 @@ fun TracksScreen(
             items(tracks, key = { it.fileName }) { track ->
                 TrackCard(
                     track = track,
+                    onOpen = { selectedFileName = track.fileName },
                     onUploadToStrava = {
                         scope.launch {
                             stravaIntegration.uploadTrack(track.fileName)
@@ -114,6 +188,7 @@ fun TracksScreen(
 @Composable
 private fun TrackCard(
     track: TrackSummary,
+    onOpen: () -> Unit,
     onUploadToStrava: () -> Unit,
 ) {
     Card(
@@ -130,6 +205,12 @@ private fun TrackCard(
             modifier = Modifier.padding(12.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable(onClick = onOpen),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
             Text(
                 text = formatTrackDateTime(track.startedAtMillis),
                 fontWeight = FontWeight.SemiBold,
@@ -161,6 +242,7 @@ private fun TrackCard(
                 text = "${stringResource(R.string.metric_elevation_gain)}: ${formatElevationClimbMeters(track.totalClimbMeters)}",
                 style = MaterialTheme.typography.bodySmall,
             )
+            }
             if (!track.isActive && track.pointCount > 0) {
                 Spacer(modifier = Modifier.height(4.dp))
                 Button(

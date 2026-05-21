@@ -326,6 +326,7 @@ private fun LoggerAppScreen(
             TracksScreen(
                 session = session,
                 stravaIntegration = stravaIntegration,
+                isTabSelected = selectedTab == AppTab.Tracks,
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(padding)

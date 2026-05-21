@@ -50,4 +50,29 @@ class TrackMetadataStoreTest {
             TrackMetadataStore.metadataFileName("hr_gps_123.csv"),
         )
     }
+
+    @Test
+    fun encodeDecode_withDisplayName() {
+        val metadata = TrackMetadata(
+            totalClimbMeters = 10f,
+            pointsWithAltitude = 5,
+            pointsWithoutAltitude = 1,
+            displayName = "Утренняя поездка",
+        )
+        val decoded = TrackMetadataStore.decode(TrackMetadataStore.encode(metadata))
+        assertNotNull(decoded)
+        assertEquals("Утренняя поездка", decoded!!.displayName)
+    }
+
+    @Test
+    fun decode_legacyWithoutDisplayName() {
+        val text = """
+            totalClimbMeters=10.0
+            pointsWithAltitude=5
+            pointsWithoutAltitude=1
+        """.trimIndent()
+        val decoded = TrackMetadataStore.decode(text)
+        assertNotNull(decoded)
+        assertNull(decoded!!.displayName)
+    }
 }

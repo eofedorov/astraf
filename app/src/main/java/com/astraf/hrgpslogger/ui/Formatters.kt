@@ -9,6 +9,7 @@ import kotlin.math.roundToInt
 
 private val timeFormatter = DateTimeFormatter.ofPattern("HH:mm:ss", Locale.getDefault())
 private val dateTimeFormatter = DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm", Locale.getDefault())
+private val trackHeaderDateFormatter = DateTimeFormatter.ofPattern("dd.MM.yyyy, HH:mm", Locale.getDefault())
 
 fun formatDuration(millis: Long): String {
     val totalSeconds = (millis / 1000).coerceAtLeast(0)
@@ -60,6 +61,18 @@ fun formatCurrentTime(): String =
 
 fun formatTrackDateTime(millis: Long): String =
     dateTimeFormatter.format(Instant.ofEpochMilli(millis).atZone(ZoneId.systemDefault()))
+
+fun formatTrackHeaderDateTime(millis: Long): String =
+    trackHeaderDateFormatter.format(Instant.ofEpochMilli(millis).atZone(ZoneId.systemDefault()))
+
+fun formatHeartRateBpm(bpm: Int?): String =
+    bpm?.let { "$it уд/мин" } ?: "—"
+
+fun formatHeartRateBpmNumber(bpm: Int?): String =
+    bpm?.toString() ?: "—"
+
+fun formatMetricWithUnit(value: String, unit: String?): String =
+    if (unit != null) "$value $unit" else value
 
 fun formatHeartRateCompact(bpm: Int?): String =
     if (bpm != null) "❤️$bpm" else "❤️—"

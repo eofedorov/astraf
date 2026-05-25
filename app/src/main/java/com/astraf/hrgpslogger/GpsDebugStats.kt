@@ -4,6 +4,9 @@ data class GpsDebugStats(
     val rawPointsCount: Int = 0,
     val acceptedPointsCount: Int = 0,
     val rejectedPointsCount: Int = 0,
+    val ignoredPointsCount: Int = 0,
+    val bridgedPointsCount: Int = 0,
+    val degradedAcceptedCount: Int = 0,
     val rejectedByPoorAccuracy: Int = 0,
     val rejectedByMissingAccuracy: Int = 0,
     val rejectedByInvalidTimestamp: Int = 0,
@@ -14,4 +17,8 @@ data class GpsDebugStats(
     val segmentsCount: Int = 0,
     val maxObservedAccuracyM: Float = 0f,
     val maxCalculatedSpeedKmh: Float = 0f,
+    val streamState: GpsStreamState = GpsStreamState.GOOD,
+    val lastMeasurementNoise: Float = 0f,
+    val lastTrust: Float = 0f,
+    val lastDecisionReason: GpsDecisionReason? = null,
 )

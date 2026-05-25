@@ -102,7 +102,7 @@ class LoggerSession(context: Context) {
                 csvLogger.resumeWriting()
                 csvLogger.currentFile()?.also { restored ->
                     restoreTrackAndStatsFromFile(restored.name)
-                    gpsRideController.forceNewSegment()
+                    gpsRideController.markExternalSegmentBreak()
                 }
             }
             csvLogger.phase.value == RecordingPhase.Idle -> {
@@ -156,7 +156,7 @@ class LoggerSession(context: Context) {
             RecordingPhase.Recording -> {
                 csvLogger.pauseLogging()
                 tripStatsTracker.pause()
-                gpsRideController.forceNewSegment()
+                gpsRideController.markExternalSegmentBreak()
                 setPauseKind(manualPause)
                 persistLoggingState(paused = true, manualPauseWhilePaused = manualPause)
                 reconcileAutoPausePolicy()
@@ -169,7 +169,7 @@ class LoggerSession(context: Context) {
         if (csvLogger.phase.value != RecordingPhase.Paused) return
         csvLogger.currentFileName()?.let { restoreTrackAndStatsFromFile(it) }
         csvLogger.resumeWriting()
-        gpsRideController.forceNewSegment()
+        gpsRideController.markExternalSegmentBreak()
         tripStatsTracker.resume(scope)
         clearPauseKind()
         startCollectJob()
@@ -377,7 +377,9 @@ class LoggerSession(context: Context) {
                 if (location == null) return@onEach
                 when (val result = gpsRideController.processRaw(location)) {
                     is GpsFilterResult.Accepted -> handleAcceptedPoint(result, bpm)
-                    is GpsFilterResult.Rejected -> Unit
+                    is GpsFilterResult.Rejected,
+                    is GpsFilterResult.Ignored,
+                    -> Unit
                 }
             }
             .launchIn(scope)

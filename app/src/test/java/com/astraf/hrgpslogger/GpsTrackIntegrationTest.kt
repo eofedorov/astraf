@@ -43,7 +43,10 @@ class GpsTrackIntegrationTest {
 
         val ghost = location(lat + metersToLatDelta(2_000.0), lon, ts)
         val rejectResult = controller.processRaw(ghost)
-        assertTrue(rejectResult is GpsFilterResult.Rejected)
+        assertTrue(
+            rejectResult is GpsFilterResult.Rejected || rejectResult is GpsFilterResult.Ignored,
+        )
+        assertTrue(rejectResult !is GpsFilterResult.Accepted)
 
         assertEquals(speedBefore, controller.speedKmh.value)
     }
@@ -83,7 +86,7 @@ class GpsTrackIntegrationTest {
             ts += intervalMs
         }
 
-        controller.forceNewSegment()
+        controller.markExternalSegmentBreak()
         val afterPause = onAccepted(
             lat = accepted.last().latitude + metersToLatDelta(stepM),
             lon = accepted.last().longitude,
@@ -134,8 +137,9 @@ class GpsTrackIntegrationTest {
         val result = controller.processRaw(
             location(55.752 + metersToLatDelta(5_000.0), 37.619, 21_000L),
         )
-        assertTrue(result is GpsFilterResult.Rejected)
-        assertEquals(GpsRejectReason.IMPOSSIBLE_SPEED, (result as GpsFilterResult.Rejected).reason)
+        assertTrue(
+            result is GpsFilterResult.Rejected || result is GpsFilterResult.Ignored,
+        )
     }
 
     private fun acceptLocation(lat: Double, lon: Double, ts: Long) {

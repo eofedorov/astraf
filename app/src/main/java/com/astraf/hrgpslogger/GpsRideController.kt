@@ -8,9 +8,10 @@ import kotlinx.coroutines.flow.asStateFlow
  * Единый слой качества GPS: фильтрация raw-точек, accepted-поток, скорость и debug-статистика.
  */
 class GpsRideController(
-    private val config: GpsFilterConfig = GpsFilterConfig(),
+    private val config: GpsProcessingConfig = GpsProcessingConfig(),
+    debugLogging: Boolean = false,
 ) {
-    private val processor = GpsTrackQualityProcessor(config)
+    private val processor = GpsTrackQualityProcessor(config, debugLogging = debugLogging)
     private val speedCalculator = SpeedCalculator()
 
     private val _acceptedPoint = MutableStateFlow<AcceptedGpsPoint?>(null)
@@ -55,10 +56,14 @@ class GpsRideController(
         publishDebugStats()
     }
 
-    fun forceNewSegment() {
-        processor.forceNewSegment()
+    /** Явный разрыв сегмента при паузе/возобновлении записи. */
+    fun markExternalSegmentBreak() {
+        processor.markExternalSegmentBreak()
         publishDebugStats()
     }
+
+    @Deprecated("Используйте markExternalSegmentBreak()", ReplaceWith("markExternalSegmentBreak()"))
+    fun forceNewSegment() = markExternalSegmentBreak()
 
     fun processRaw(sample: LocationSample): GpsFilterResult {
         val result = processor.process(RawGpsPoint.from(sample))

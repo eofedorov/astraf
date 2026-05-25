@@ -38,6 +38,7 @@ class ElevationClimbTracker(
     private var currentMinAltitude: Float? = null
     private var totalClimbMeters = 0f
     private var lastSmoothedAltitude: Float? = null
+    private var lastSegmentId: Int? = null
     private var pointsWithAltitude = 0
     private var pointsWithoutAltitude = 0
     private var ignoredSmallElevationChanges = 0
@@ -47,6 +48,7 @@ class ElevationClimbTracker(
         currentMinAltitude = null
         totalClimbMeters = 0f
         lastSmoothedAltitude = null
+        lastSegmentId = null
         pointsWithAltitude = 0
         pointsWithoutAltitude = 0
         ignoredSmallElevationChanges = 0
@@ -59,6 +61,11 @@ class ElevationClimbTracker(
     }
 
     fun onAcceptedPoint(point: AcceptedGpsPoint) {
+        if (lastSegmentId != null && point.segmentId != lastSegmentId) {
+            resetSegmentAltitudeState()
+        }
+        lastSegmentId = point.segmentId
+
         val rawAltitude = point.altitudeMeters
         if (rawAltitude == null) {
             pointsWithoutAltitude++
@@ -127,6 +134,12 @@ class ElevationClimbTracker(
     }
 
     fun hasAltitudeData(): Boolean = pointsWithAltitude > 0
+
+    private fun resetSegmentAltitudeState() {
+        recentAltitudes.clear()
+        currentMinAltitude = null
+        lastSmoothedAltitude = null
+    }
 
     private fun publish(
         rawAltitude: Float? = _debugStats.value.rawAltitude,

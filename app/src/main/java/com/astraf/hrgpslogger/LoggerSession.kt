@@ -29,8 +29,13 @@ class LoggerSession(context: Context) {
     val elevationClimbTracker = ElevationClimbTracker()
     val activeTrackStore = ActiveTrackStore()
     val gpsRideController = GpsRideController()
+    private val gpsDebugRecorder = GpsDebugRecorder(appContext)
 
     private val rideAutoPausePolicy = RideAutoPausePolicy()
+
+    init {
+        gpsDebugRecorder.configure(gpsRideController.processingConfig)
+    }
 
     private var csvCollectJob: Job? = null
     private var motionObserveJob: Job? = null
@@ -69,8 +74,19 @@ class LoggerSession(context: Context) {
                 bleClient.connect(address)
             }
         }
+        gpsDebugRecorder.configure(gpsRideController.processingConfig)
+        gpsDebugRecorder.openBlocking(fileName)
         syncPauseKindFromStore()
         reconcileAutoPausePolicy()
+    }
+
+    fun hasGpsDebugFile(): Boolean {
+        val fileName = csvLogger.currentFileName() ?: return false
+        return gpsDebugRecorder.hasDebugFile(fileName)
+    }
+
+    fun flushGpsDebugBeforeExport() {
+        gpsDebugRecorder.flushBlocking()
     }
 
     fun ensureTrackLoadedFromFile(fileName: String) {
@@ -145,6 +161,7 @@ class LoggerSession(context: Context) {
         csvCollectJob = null
         when (csvLogger.phase.value) {
             RecordingPhase.WaitingForGps -> {
+                csvLogger.currentFileName()?.let { gpsDebugRecorder.deleteBlocking(it) }
                 csvLogger.finishLogging()
                 tripStatsTracker.reset()
                 elevationClimbTracker.reset()
@@ -182,7 +199,16 @@ class LoggerSession(context: Context) {
         csvCollectJob = null
         stopAutoPausePolicy()
         clearPauseKind()
-        csvLogger.currentFileName()?.let { saveTrackMetadata(it) }
+        val csvFileName = csvLogger.currentFileName()
+        val debugStats = gpsRideController.debugStats.value
+        csvFileName?.let { fileName ->
+            saveTrackMetadata(fileName)
+            gpsDebugRecorder.finalizeFooterBlocking(
+                csvFileName = fileName,
+                summary = GpsDebugJsonCodec.summaryFromStats(debugStats),
+                sessionContext = debugSessionContext(),
+            )
+        }
         tripStatsTracker.stop()
         tripStatsTracker.reset()
         elevationClimbTracker.reset()
@@ -349,6 +375,8 @@ class LoggerSession(context: Context) {
         restoreTrackAndStatsFromFile(fileName)
         val points = TrackCsvParser.parseAcceptedPoints(file)
         gpsRideController.restoreFromAcceptedPoints(points, TrackCsvParser.segmentsCount(points))
+        gpsDebugRecorder.configure(gpsRideController.processingConfig)
+        gpsDebugRecorder.openBlocking(fileName)
         return file
     }
 
@@ -375,7 +403,16 @@ class LoggerSession(context: Context) {
         ) { bpm, location -> bpm to location }
             .onEach { (bpm, location) ->
                 if (location == null) return@onEach
-                when (val result = gpsRideController.processRaw(location)) {
+                val csvFileName = csvLogger.currentFileName() ?: return@onEach
+                val result = gpsRideController.processRaw(location)
+                gpsDebugRecorder.appendEvent(
+                    csvFileName = csvFileName,
+                    sample = location,
+                    result = result,
+                    heartRateBpm = bpm,
+                    sessionContext = debugSessionContext(),
+                )
+                when (result) {
                     is GpsFilterResult.Accepted -> handleAcceptedPoint(result, bpm)
                     is GpsFilterResult.Rejected,
                     is GpsFilterResult.Ignored,
@@ -384,6 +421,12 @@ class LoggerSession(context: Context) {
             }
             .launchIn(scope)
     }
+
+    private fun debugSessionContext(): GpsDebugSessionContext = GpsDebugSessionContext(
+        recordingPhase = csvLogger.phase.value,
+        isAutoPaused = _isAutoPaused.value,
+        manualPauseWhilePaused = _manualPauseWhilePaused.value,
+    )
 
     private fun handleAcceptedPoint(result: GpsFilterResult.Accepted, bpm: Int?) {
         if (csvLogger.phase.value == RecordingPhase.WaitingForGps) {

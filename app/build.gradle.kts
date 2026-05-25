@@ -67,6 +67,7 @@ dependencies {
     implementation(libs.okhttp)
     testImplementation(libs.junit)
     testImplementation(libs.robolectric)
+    testImplementation("org.json:json:20240303")
     testImplementation(libs.androidx.test.ext.junit)
     testImplementation(libs.androidx.compose.ui.test.junit4)
     androidTestImplementation(libs.androidx.test.ext.junit)

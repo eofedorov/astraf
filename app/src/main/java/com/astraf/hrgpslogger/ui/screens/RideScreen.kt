@@ -10,21 +10,30 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import android.content.Intent
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.astraf.hrgpslogger.GpsDebugExporter
+import com.astraf.hrgpslogger.GpsDebugJsonCodec
+import com.astraf.hrgpslogger.GpsDebugSharing
 import com.astraf.hrgpslogger.LoggerSession
 import com.astraf.hrgpslogger.R
 import com.astraf.hrgpslogger.RecordingPhase
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import com.astraf.hrgpslogger.ui.components.RideMapView
 import com.astraf.hrgpslogger.ui.components.RideMetricCell
 import com.astraf.hrgpslogger.ui.components.RideMetricsFullscreenGrid
@@ -55,10 +64,16 @@ fun RideScreen(
     onFinishLogging: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     val heartRate by session.bleClient.heartRateBpm.collectAsStateWithLifecycle()
     val tripStats by session.tripStatsTracker.stats.collectAsStateWithLifecycle()
+    val gpsDebugStats by session.gpsRideController.debugStats.collectAsStateWithLifecycle()
 
     var mapCollapsed by rememberSaveable { mutableStateOf(false) }
+    val exportDebugEnabled = remember(recordingPhase, gpsDebugStats.rawPointsCount) {
+        recordingPhase != RecordingPhase.Idle && session.hasGpsDebugFile()
+    }
     val mapVisible = isMapActive && !mapCollapsed
 
     var currentTime by remember { mutableStateOf(formatCurrentTime()) }
@@ -183,6 +198,31 @@ fun RideScreen(
             onPauseLogging = onPauseLogging,
             onResumeLogging = onResumeLogging,
             onFinishClick = { showFinishDialog = true },
+            exportDebugEnabled = exportDebugEnabled,
+            onExportDebug = {
+                val csvFileName = session.csvLogger.currentFileName() ?: return@RideRecordingControls
+                scope.launch {
+                    withContext(Dispatchers.IO) {
+                        session.flushGpsDebugBeforeExport()
+                        val summary = GpsDebugJsonCodec.summaryFromStats(gpsDebugStats)
+                        val jsonFile = GpsDebugExporter.exportCacheFile(context, csvFileName, summary)
+                            ?: return@withContext
+                        val shareIntent = GpsDebugSharing.buildShareIntent(
+                            context = context,
+                            jsonFile = jsonFile,
+                            subject = context.getString(R.string.ride_debug_share_subject, csvFileName),
+                        )
+                        withContext(Dispatchers.Main) {
+                            context.startActivity(
+                                Intent.createChooser(
+                                    shareIntent,
+                                    context.getString(R.string.ride_debug_share_chooser),
+                                ),
+                            )
+                        }
+                    }
+                }
+            },
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .padding(bottom = RideControlsBottomPadding),

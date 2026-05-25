@@ -11,6 +11,7 @@ class GpsRideController(
     private val config: GpsProcessingConfig = GpsProcessingConfig(),
     debugLogging: Boolean = false,
 ) {
+    val processingConfig: GpsProcessingConfig get() = config
     private val processor = GpsTrackQualityProcessor(config, debugLogging = debugLogging)
     private val speedCalculator = SpeedCalculator()
 

@@ -47,6 +47,12 @@
     <string name="cd_pause_logging">Пауза</string>
     <string name="cd_resume_logging">Возобновить запись</string>
     <string name="cd_finish_logging">Завершить запись</string>
+    <string name="cd_export_debug">Экспортировать отладочный JSON</string>
+    <string name="ride_action_export_debug">Экспортировать</string>
+    <string name="ride_debug_share_chooser">Отправить GPS debug JSON</string>
+    <string name="ride_debug_share_subject">GPS debug: %1$s</string>
+    <string name="ride_debug_export_success">Отладочный JSON подготовлен</string>
+    <string name="ride_debug_export_failed">Не удалось экспортировать отладочный JSON</string>
 
     <string name="ride_screen_title">Поездка</string>
     <string name="ride_not_active">Запись не активна. Начните запись на вкладке «Поездка».</string>

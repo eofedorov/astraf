@@ -12,6 +12,7 @@ import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.Map
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
@@ -42,6 +43,8 @@ fun RideRecordingControls(
     onPauseLogging: () -> Unit,
     onResumeLogging: () -> Unit,
     onFinishClick: () -> Unit,
+    exportDebugEnabled: Boolean = false,
+    onExportDebug: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     Row(
@@ -67,6 +70,33 @@ fun RideRecordingControls(
                     tint = RidePrimaryControl,
                 )
             }
+        }
+
+        val sessionActive = recordingPhase != RecordingPhase.Idle
+
+        if (sessionActive) {
+            Surface(
+                onClick = onExportDebug,
+                enabled = exportDebugEnabled,
+                shape = CircleShape,
+                color = RideFloatingControlSurface,
+                shadowElevation = 4.dp,
+                modifier = Modifier.size(SideButtonSize),
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        imageVector = Icons.Default.Share,
+                        contentDescription = stringResource(R.string.cd_export_debug),
+                        tint = if (exportDebugEnabled) {
+                            RidePrimaryControl
+                        } else {
+                            RidePrimaryControl.copy(alpha = 0.38f)
+                        },
+                    )
+                }
+            }
+        } else {
+            Box(modifier = Modifier.size(SideButtonSize))
         }
 
         when (recordingPhase) {

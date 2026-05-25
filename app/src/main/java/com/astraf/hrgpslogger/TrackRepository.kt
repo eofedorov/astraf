@@ -107,6 +107,7 @@ class TrackRepository(private val context: Context) {
         val file = File(context.filesDir, fileName)
         val deleted = if (file.exists()) file.delete() else true
         TrackMetadataStore.delete(context, fileName)
+        GpsDebugStore.debugFile(context, fileName).delete()
         return deleted
     }
 

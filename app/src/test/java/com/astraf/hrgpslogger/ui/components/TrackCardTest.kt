@@ -4,6 +4,7 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.astraf.hrgpslogger.RobolectricTestApp
 import com.astraf.hrgpslogger.TrackSummary
 import org.junit.Rule
 import org.junit.Test
@@ -11,7 +12,11 @@ import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
 
 @RunWith(AndroidJUnit4::class)
-@Config(instrumentedPackages = ["androidx.loader.content"], sdk = [34], manifest = Config.NONE)
+@Config(
+    application = RobolectricTestApp::class,
+    instrumentedPackages = ["androidx.loader.content"],
+    sdk = [36],
+)
 class TrackCardTest {
 
     @get:Rule
@@ -57,7 +62,7 @@ class TrackCardTest {
         // Average speed
         val avgSpeedText = com.astraf.hrgpslogger.ui.formatSpeedKmh(34.6f)
         composeTestRule.onNodeWithText(avgSpeedText).assertIsDisplayed()
-        composeTestRule.onNodeWithText("Средняя скорость").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Ср. скорость").assertIsDisplayed()
         
         // Elevation
         val elevationText = com.astraf.hrgpslogger.ui.formatListElevationMeters(76f)
@@ -72,6 +77,6 @@ class TrackCardTest {
         // Heart rate
         val hrText = com.astraf.hrgpslogger.ui.formatHeartRateBpm(148)
         composeTestRule.onNodeWithText(hrText).assertIsDisplayed()
-        composeTestRule.onNodeWithText("Средний пульс").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Ср. пульс").assertIsDisplayed()
     }
 }

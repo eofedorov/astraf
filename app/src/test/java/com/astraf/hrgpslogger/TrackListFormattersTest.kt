@@ -30,10 +30,10 @@ class TrackListFormattersTest {
     }
 
     @Test
-    fun formatRideCardHeader_includesTime() {
+    fun formatRideCardHeader_matchesHumanDate() {
         val now = ZonedDateTime.of(2026, 5, 21, 20, 0, 0, 0, zone)
         val ride = now.withHour(14).withMinute(35).toInstant().toEpochMilli()
-        assertEquals("Сегодня днём • 14:35", formatRideCardHeader(ride, zone, now))
+        assertEquals("Сегодня днём", formatRideCardHeader(ride, zone, now))
     }
 
     @Test

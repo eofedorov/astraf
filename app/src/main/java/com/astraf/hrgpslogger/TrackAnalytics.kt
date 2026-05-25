@@ -46,9 +46,8 @@ object TrackAnalytics {
         return (points.last().timestampMillis - points.first().timestampMillis).coerceAtLeast(0L)
     }
 
-    fun computeAverageSpeedKmh(points: List<AcceptedGpsPoint>): Float? {
+    fun computeMovingTimeMillis(points: List<AcceptedGpsPoint>): Long? {
         if (points.size < 2) return null
-        var totalDistance = 0.0
         var movingTimeMillis = 0L
         for (index in 1 until points.size) {
             val previous = points[index - 1]
@@ -57,14 +56,25 @@ object TrackAnalytics {
             val deltaMs = current.timestampMillis - previous.timestampMillis
             if (deltaMs <= 0L) continue
             val segmentDistance = GeoDistance.distanceMeters(previous, current)
-            totalDistance += segmentDistance
             val speedKmh = current.derivedSpeedKmh
                 ?: (segmentDistance / (deltaMs / 1000.0) * MPS_TO_KMH).toFloat()
             if (speedKmh >= MOVING_MIN_KMH) {
                 movingTimeMillis += deltaMs
             }
         }
-        if (movingTimeMillis <= 0L) return null
+        return movingTimeMillis.takeIf { it > 0L }
+    }
+
+    fun computeAverageSpeedKmh(points: List<AcceptedGpsPoint>): Float? {
+        if (points.size < 2) return null
+        val movingTimeMillis = computeMovingTimeMillis(points) ?: return null
+        var totalDistance = 0.0
+        for (index in 1 until points.size) {
+            val previous = points[index - 1]
+            val current = points[index]
+            if (previous.segmentId != current.segmentId) continue
+            totalDistance += GeoDistance.distanceMeters(previous, current)
+        }
         return (totalDistance / (movingTimeMillis / 1000.0) * MPS_TO_KMH).toFloat()
     }
 

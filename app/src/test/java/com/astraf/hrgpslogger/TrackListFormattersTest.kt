@@ -97,6 +97,7 @@ class TrackListFormattersTest {
         startedAtMillis = startedAtMillis,
         pointCount = 1,
         durationMillis = 0L,
+        movingTimeMillis = 0L,
         distanceMeters = 0.0,
         averageSpeedKmh = null,
         maxSpeedKmh = null,

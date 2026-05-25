@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.DirectionsBike
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Settings
@@ -49,6 +50,7 @@ import com.astraf.hrgpslogger.RecordingPhase
 import com.astraf.hrgpslogger.ui.screens.RideScreen
 import com.astraf.hrgpslogger.ui.screens.SettingsScreen
 import com.astraf.hrgpslogger.strava.StravaIntegration
+import com.astraf.hrgpslogger.ui.screens.StatisticsScreen
 import com.astraf.hrgpslogger.ui.screens.TracksScreen
 import com.astraf.hrgpslogger.ui.theme.HrGpsLoggerTheme
 import kotlinx.coroutines.launch
@@ -225,6 +227,7 @@ private enum class AppTab {
     Settings,
     Ride,
     Tracks,
+    Statistics,
 }
 
 @Composable
@@ -333,6 +336,17 @@ private fun LoggerAppScreen(
                     .tabPanelVisible(selectedTab == AppTab.Tracks)
                     .tabZIndex(selectedTab == AppTab.Tracks),
             )
+            StatisticsScreen(
+                session = session,
+                stravaIntegration = stravaIntegration,
+                isTabSelected = selectedTab == AppTab.Statistics,
+                onGoToRide = { selectedTab = AppTab.Ride },
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding)
+                    .tabPanelVisible(selectedTab == AppTab.Statistics)
+                    .tabZIndex(selectedTab == AppTab.Statistics),
+            )
         }
     }
 }
@@ -377,6 +391,17 @@ private fun ThinTabBar(
                 imageVector = Icons.Default.History,
                 contentDescription = stringResource(R.string.tab_tracks),
                 tint = if (selectedTab == AppTab.Tracks) {
+                    MaterialTheme.colorScheme.primary
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                },
+            )
+        }
+        IconButton(onClick = { onTabSelected(AppTab.Statistics) }) {
+            Icon(
+                imageVector = Icons.Default.BarChart,
+                contentDescription = stringResource(R.string.tab_statistics),
+                tint = if (selectedTab == AppTab.Statistics) {
                     MaterialTheme.colorScheme.primary
                 } else {
                     MaterialTheme.colorScheme.onSurfaceVariant

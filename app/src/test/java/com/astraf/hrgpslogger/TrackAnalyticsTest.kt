@@ -121,6 +121,16 @@ class TrackAnalyticsTest {
         assertNull(TrackAnalytics.computeAverageSpeedKmh(listOf(point(ts = 0L, lat = 55.0, lon = 37.0, segment = 0))))
     }
 
+    @Test
+    fun computeMovingTime_countsOnlyMovingIntervals() {
+        val points = listOf(
+            point(ts = 0L, lat = 55.0, lon = 37.0, segment = 0, speed = 20f),
+            point(ts = 60_000L, lat = 55.001, lon = 37.001, segment = 0, speed = 20f),
+            point(ts = 120_000L, lat = 55.002, lon = 37.002, segment = 0, speed = 0.5f),
+        )
+        assertEquals(60_000L, TrackAnalytics.computeMovingTimeMillis(points))
+    }
+
     private fun point(
         ts: Long,
         lat: Double,

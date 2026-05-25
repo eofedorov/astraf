@@ -6,6 +6,7 @@ data class TrackSummary(
     val startedAtMillis: Long,
     val pointCount: Int,
     val durationMillis: Long?,
+    val movingTimeMillis: Long?,
     val distanceMeters: Double?,
     val averageSpeedKmh: Float?,
     val maxSpeedKmh: Float?,

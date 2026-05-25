@@ -32,6 +32,7 @@ class TrackCardTest {
             isActive = false,
             distanceMeters = 40560.0,
             durationMillis = 4421000L, // 1:13:41
+            movingTimeMillis = 4_000_000L,
             averageSpeedKmh = 34.6f,
             maxSpeedKmh = 57.9f,
             averageHeartRateBpm = 148,

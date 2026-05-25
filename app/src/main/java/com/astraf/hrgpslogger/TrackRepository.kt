@@ -11,13 +11,13 @@ class TrackRepository(private val context: Context) {
         } ?: return emptyList()
 
         return files
-            .sortedByDescending { it.lastModified() }
             .map { file ->
                 val parsed = parseTrack(file)
                 parsed.copy(
                     isActive = activeFilePath != null && file.absolutePath == activeFilePath,
                 )
             }
+            .sortedByDescending { it.startedAtMillis }
     }
 
     fun loadTrackDetail(fileName: String, activeFilePath: String?): TrackDetail {
@@ -59,7 +59,12 @@ class TrackRepository(private val context: Context) {
         val averageSpeedKmh = TrackAnalytics.computeAverageSpeedKmh(points)
         val maxSpeedKmh = TrackAnalytics.computeMaxSpeedKmh(points)
         val (averageHeartRateBpm, maxHeartRateBpm) = TrackAnalytics.computeHeartRateStats(samples)
-        val totalClimbMeters = resolveTotalClimbMeters(fileName, points, metadata)
+        val totalClimbMeters = resolveTotalClimbMeters(
+            fileName = fileName,
+            points = points,
+            metadata = metadata,
+            loadMetadata = { TrackMetadataStore.load(context, it) },
+        )
         val hasGpsData = pointCount > 0
         val hasHeartRateData = samples.any { it.bpm != null }
         val hasAltitudeData = points.any { it.altitudeMeters != null }
@@ -110,49 +115,13 @@ class TrackRepository(private val context: Context) {
     }
 
     private fun parseTrack(file: File): TrackSummary {
-        val startedAtMillis = fileNameTimestamp(file.name).takeIf { it > 0L } ?: file.lastModified()
-
-        if (file.length() == 0L) {
-            return TrackSummary(
-                fileName = file.name,
-                filePath = file.absolutePath,
-                startedAtMillis = startedAtMillis,
-                pointCount = 0,
-                durationMillis = null,
-                distanceMeters = null,
-                totalClimbMeters = null,
-                isActive = false,
-            )
-        }
-
-        val points = TrackCsvParser.parseAcceptedPoints(file)
-        val duration = TrackAnalytics.computeDurationMillis(points)
-        val totalClimbMeters = resolveTotalClimbMeters(file.name, points, null)
-
-        return TrackSummary(
-            fileName = file.name,
-            filePath = file.absolutePath,
-            startedAtMillis = points.firstOrNull()?.timestampMillis ?: startedAtMillis,
-            pointCount = points.size,
-            durationMillis = duration,
-            distanceMeters = TrackAnalytics.computeDistanceMeters(points),
-            totalClimbMeters = totalClimbMeters,
-            isActive = false,
+        val metadata = TrackMetadataStore.load(context, file.name)
+        return parseTrackSummary(
+            file = file,
+            metadata = metadata,
+            loadMetadata = { TrackMetadataStore.load(context, it) },
         )
     }
-
-    private fun resolveTotalClimbMeters(
-        fileName: String,
-        points: List<AcceptedGpsPoint>,
-        metadata: TrackMetadata?,
-    ): Float? {
-        metadata?.totalClimbMeters?.takeIf { it > 0f }?.let { return it }
-        TrackMetadataStore.load(context, fileName)?.totalClimbMeters?.takeIf { it > 0f }?.let { return it }
-        return ElevationClimbTracker.computeTotalClimbMeters(points)
-    }
-
-    private fun fileNameTimestamp(fileName: String): Long =
-        fileName.removePrefix(TRACK_PREFIX).removeSuffix(".csv").toLongOrNull() ?: 0L
 
     private fun emptyDetail(
         fileName: String,
@@ -190,5 +159,78 @@ class TrackRepository(private val context: Context) {
 
     companion object {
         private const val TRACK_PREFIX = "hr_gps_"
+
+        internal fun parseTrackSummary(
+            file: File,
+            metadata: TrackMetadata?,
+            loadMetadata: (String) -> TrackMetadata? = { null },
+        ): TrackSummary {
+            val startedAtMillis = fileNameTimestamp(file.name).takeIf { it > 0L } ?: file.lastModified()
+
+            if (file.length() == 0L) {
+                return emptySummary(file, startedAtMillis, metadata)
+            }
+
+            val samples = try {
+                TrackCsvParser.parseSamples(file)
+            } catch (_: Exception) {
+                return emptySummary(file, startedAtMillis, metadata)
+            }
+
+            val points = samples.map { it.point }
+            val (averageHeartRateBpm, _) = TrackAnalytics.computeHeartRateStats(samples)
+
+            return TrackSummary(
+                fileName = file.name,
+                filePath = file.absolutePath,
+                startedAtMillis = points.firstOrNull()?.timestampMillis ?: startedAtMillis,
+                pointCount = points.size,
+                durationMillis = TrackAnalytics.computeDurationMillis(points),
+                distanceMeters = TrackAnalytics.computeDistanceMeters(points),
+                averageSpeedKmh = TrackAnalytics.computeAverageSpeedKmh(points),
+                maxSpeedKmh = TrackAnalytics.computeMaxSpeedKmh(points),
+                averageHeartRateBpm = averageHeartRateBpm,
+                totalClimbMeters = resolveTotalClimbMeters(file.name, points, metadata, loadMetadata),
+                displayName = metadata?.displayName,
+                routePoints = points.toRoutePreview(),
+                stravaActivityId = metadata?.stravaActivityId,
+                isActive = false,
+            )
+        }
+
+        private fun emptySummary(
+            file: File,
+            startedAtMillis: Long,
+            metadata: TrackMetadata?,
+        ): TrackSummary = TrackSummary(
+            fileName = file.name,
+            filePath = file.absolutePath,
+            startedAtMillis = startedAtMillis,
+            pointCount = 0,
+            durationMillis = null,
+            distanceMeters = null,
+            averageSpeedKmh = null,
+            maxSpeedKmh = null,
+            averageHeartRateBpm = null,
+            totalClimbMeters = null,
+            displayName = metadata?.displayName,
+            routePoints = emptyList(),
+            stravaActivityId = metadata?.stravaActivityId,
+            isActive = false,
+        )
+
+        private fun resolveTotalClimbMeters(
+            fileName: String,
+            points: List<AcceptedGpsPoint>,
+            metadata: TrackMetadata?,
+            loadMetadata: (String) -> TrackMetadata?,
+        ): Float? {
+            metadata?.totalClimbMeters?.takeIf { it > 0f }?.let { return it }
+            loadMetadata(fileName)?.totalClimbMeters?.takeIf { it > 0f }?.let { return it }
+            return ElevationClimbTracker.computeTotalClimbMeters(points)
+        }
+
+        private fun fileNameTimestamp(fileName: String): Long =
+            fileName.removePrefix(TRACK_PREFIX).removeSuffix(".csv").toLongOrNull() ?: 0L
     }
 }

@@ -5,6 +5,7 @@ import android.content.Intent
 import android.net.Uri
 import com.astraf.hrgpslogger.R
 import com.astraf.hrgpslogger.TrackCsvParser
+import com.astraf.hrgpslogger.TrackMetadataStore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -182,6 +183,7 @@ class StravaIntegration(context: Context) {
                 return@withContext StravaUploadResult.Failure(message)
             }
             upload.activityId?.let { activityId ->
+                persistStravaActivityId(csvFileName, activityId)
                 _uploadStatus.value = StravaUploadUiStatus.Success(activityId)
                 return@withContext StravaUploadResult.Success(activityId)
             }
@@ -189,8 +191,10 @@ class StravaIntegration(context: Context) {
             _uploadStatus.value = StravaUploadUiStatus.Processing
             val result = pollUploadCompletion(accessToken, upload.uploadId)
             when (result) {
-                is StravaUploadResult.Success ->
+                is StravaUploadResult.Success -> {
+                    persistStravaActivityId(csvFileName, result.activityId)
                     _uploadStatus.value = StravaUploadUiStatus.Success(result.activityId)
+                }
                 is StravaUploadResult.Failure ->
                     _uploadStatus.value = StravaUploadUiStatus.Failed(result.message)
             }
@@ -206,6 +210,13 @@ class StravaIntegration(context: Context) {
 
     fun clearUploadStatus() {
         _uploadStatus.value = null
+    }
+
+    fun buildActivityUri(activityId: Long): Uri =
+        Uri.parse("https://www.strava.com/activities/$activityId")
+
+    private fun persistStravaActivityId(csvFileName: String, activityId: Long) {
+        TrackMetadataStore.updateStravaActivityId(appContext, csvFileName, activityId)
     }
 
     private fun createClient(): StravaClient = StravaClient(

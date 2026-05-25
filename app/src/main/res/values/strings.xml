@@ -57,7 +57,7 @@
     <string name="metric_duration">Длительность записи</string>
     <string name="metric_heart_rate">Текущий пульс</string>
     <string name="metric_current_speed">Текущая скорость</string>
-    <string name="metric_average_speed">Средняя скорость</string>
+    <string name="metric_average_speed">Ср. скорость</string>
     <string name="metric_current_time">Текущее время</string>
     <string name="metric_max_speed">Максимальная скорость</string>
     <string name="metric_distance">Пройденное расстояние</string>
@@ -73,8 +73,25 @@
     <string name="bpm_unit">уд/мин</string>
     <string name="speed_kmh_unit">км/ч</string>
 
-    <string name="tracks_screen_title">Записи</string>
-    <string name="tracks_empty">Сохранённых треков пока нет.</string>
+    <string name="tracks_screen_title">Поездки</string>
+    <string name="tracks_empty">Сохранённых поездок пока нет.</string>
+    <string name="tracks_loading">Загрузка…</string>
+    <string name="tracks_load_error">Не удалось загрузить поездки</string>
+    <string name="track_list_no_route">Нет маршрута</string>
+    <string name="track_card_menu">Меню поездки</string>
+    <string name="track_list_label_distance">Расстояние</string>
+    <string name="track_list_label_duration">Время в движении</string>
+    <string name="track_list_label_avg_speed">Сред. скорость</string>
+    <string name="track_list_label_elevation">Набор высоты</string>
+    <string name="track_list_label_max_speed">Макс. скорость</string>
+    <string name="track_list_label_heart_rate">Пульс</string>
+    <string name="track_list_max_speed">Макс: %1$s</string>
+    <string name="track_list_heart_rate">Пульс: %1$s</string>
+    <string name="track_menu_share">Поделиться</string>
+    <string name="track_menu_open_strava">Открыть в Strava</string>
+    <string name="track_gpx_export_chooser">Сохранить GPX</string>
+    <string name="track_gpx_export_success">GPX сохранён</string>
+    <string name="track_action_delete_confirm_message">Это действие нельзя отменить.</string>
     <string name="track_recording_now">Идёт запись</string>
     <string name="track_points">Точек: %1$d</string>
     <string name="track_detail_back">Назад</string>
@@ -85,9 +102,9 @@
     <string name="track_status_unreadable">Не удалось прочитать запись</string>
     <string name="track_header_duration_separator"> · %1$s</string>
     <string name="track_map_no_gps">Нет GPS-данных для отображения маршрута</string>
-    <string name="track_metric_avg_speed">Средняя скорость</string>
+    <string name="track_metric_avg_speed">Ср. скорость</string>
     <string name="track_metric_max_speed">Максимальная скорость</string>
-    <string name="track_metric_avg_hr">Средний пульс</string>
+    <string name="track_metric_avg_hr">Ср. пульс</string>
     <string name="track_metric_max_hr">Максимальный пульс</string>
     <string name="track_metric_points">Точек</string>
     <string name="track_chart_speed_title">Скорость</string>
@@ -114,7 +131,6 @@
     <string name="track_action_rename">Переименовать поездку</string>
     <string name="track_action_delete">Удалить поездку</string>
     <string name="track_action_delete_confirm_title">Удалить поездку?</string>
-    <string name="track_action_delete_confirm_message">Запись и метаданные будут удалены без возможности восстановления.</string>
     <string name="track_action_delete_confirm">Удалить</string>
     <string name="track_action_cancel">Отмена</string>
     <string name="track_rename_dialog_title">Название поездки</string>
@@ -137,6 +153,7 @@
     <string name="strava_linked_unknown">Привязано</string>
     <string name="strava_not_linked">Strava не привязана</string>
     <string name="strava_upload">Отправить в Strava</string>
+    <string name="strava_open_activity">Открыть в Strava</string>
     <string name="strava_upload_exporting">Подготовка файла…</string>
     <string name="strava_upload_uploading">Загрузка в Strava…</string>
     <string name="strava_upload_processing">Strava обрабатывает трек…</string>

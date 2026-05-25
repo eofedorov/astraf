@@ -8,6 +8,7 @@ data class TrackMetadata(
     val pointsWithAltitude: Int,
     val pointsWithoutAltitude: Int,
     val displayName: String? = null,
+    val stravaActivityId: Long? = null,
 )
 
 object TrackMetadataStore {
@@ -34,6 +35,21 @@ object TrackMetadataStore {
         return decode(file.readText())
     }
 
+    fun updateStravaActivityId(context: Context, csvFileName: String, activityId: Long?) {
+        val existing = load(context, csvFileName)
+        val metadata = if (existing != null) {
+            existing.copy(stravaActivityId = activityId)
+        } else {
+            TrackMetadata(
+                totalClimbMeters = 0f,
+                pointsWithAltitude = 0,
+                pointsWithoutAltitude = 0,
+                stravaActivityId = activityId,
+            )
+        }
+        save(context, csvFileName, metadata)
+    }
+
     fun updateDisplayName(context: Context, csvFileName: String, displayName: String?) {
         val trimmed = displayName?.trim()?.takeIf { it.isNotEmpty() }
         val existing = load(context, csvFileName)
@@ -55,6 +71,7 @@ object TrackMetadataStore {
         appendLine("pointsWithAltitude=${metadata.pointsWithAltitude}")
         appendLine("pointsWithoutAltitude=${metadata.pointsWithoutAltitude}")
         metadata.displayName?.let { appendLine("displayName=$it") }
+        metadata.stravaActivityId?.let { appendLine("stravaActivityId=$it") }
     }
 
     internal fun decode(text: String): TrackMetadata? = try {
@@ -70,6 +87,7 @@ object TrackMetadataStore {
             pointsWithAltitude = values.getValue("pointsWithAltitude").toInt(),
             pointsWithoutAltitude = values.getValue("pointsWithoutAltitude").toInt(),
             displayName = values["displayName"]?.takeIf { it.isNotEmpty() },
+            stravaActivityId = values["stravaActivityId"]?.toLongOrNull(),
         )
     } catch (_: Exception) {
         null

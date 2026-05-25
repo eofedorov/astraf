@@ -65,6 +65,19 @@ class TrackMetadataStoreTest {
     }
 
     @Test
+    fun encodeDecode_withStravaActivityId() {
+        val metadata = TrackMetadata(
+            totalClimbMeters = 10f,
+            pointsWithAltitude = 5,
+            pointsWithoutAltitude = 1,
+            stravaActivityId = 123456789L,
+        )
+        val decoded = TrackMetadataStore.decode(TrackMetadataStore.encode(metadata))
+        assertNotNull(decoded)
+        assertEquals(123456789L, decoded!!.stravaActivityId)
+    }
+
+    @Test
     fun decode_legacyWithoutDisplayName() {
         val text = """
             totalClimbMeters=10.0

@@ -11,3 +11,4 @@ captures
 logs
 .cursor/
 .vscode/
+.kotlin/

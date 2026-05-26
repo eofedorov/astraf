@@ -19,7 +19,13 @@ android {
 
     buildTypes {
         release {
-            isMinifyEnabled = false
+            ndk {
+                abiFilters += listOf("arm64-v8a")
+            }
+            signingConfig = signingConfigs.getByName("debug")
+            isMinifyEnabled = true
+            isShrinkResources = true
+            isDebuggable = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",

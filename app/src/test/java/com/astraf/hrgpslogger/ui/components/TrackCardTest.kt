@@ -51,31 +51,25 @@ class TrackCardTest {
             )
         }
 
-        // Distance
         val distanceText = "${com.astraf.hrgpslogger.ui.formatDistanceNumber(40560.0)} ${com.astraf.hrgpslogger.ui.formatDistanceUnit(40560.0)}"
         composeTestRule.onNodeWithText(distanceText).assertIsDisplayed()
-        
-        // Duration
+
         val durationText = com.astraf.hrgpslogger.ui.formatDuration(4421000L)
         composeTestRule.onNodeWithText(durationText).assertIsDisplayed()
         composeTestRule.onNodeWithText("Длительность").assertIsDisplayed()
-        
-        // Average speed
+
         val avgSpeedText = com.astraf.hrgpslogger.ui.formatSpeedKmh(34.6f)
         composeTestRule.onNodeWithText(avgSpeedText).assertIsDisplayed()
         composeTestRule.onNodeWithText("Ср. скорость").assertIsDisplayed()
-        
-        // Elevation
+
         val elevationText = com.astraf.hrgpslogger.ui.formatListElevationMeters(76f)
         composeTestRule.onNodeWithText(elevationText).assertIsDisplayed()
         composeTestRule.onNodeWithText("Набор высоты").assertIsDisplayed()
-        
-        // Max speed
+
         val maxSpeedText = "${com.astraf.hrgpslogger.ui.formatSpeedKmhNumber(57.9f)} км/ч"
         composeTestRule.onNodeWithText(maxSpeedText).assertIsDisplayed()
         composeTestRule.onNodeWithText("Макс. скорость").assertIsDisplayed()
-        
-        // Heart rate
+
         val hrText = com.astraf.hrgpslogger.ui.formatHeartRateBpm(148)
         composeTestRule.onNodeWithText(hrText).assertIsDisplayed()
         composeTestRule.onNodeWithText("Ср. пульс").assertIsDisplayed()

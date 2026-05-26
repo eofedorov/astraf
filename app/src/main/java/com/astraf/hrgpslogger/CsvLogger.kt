@@ -127,7 +127,6 @@ class CsvLogger(private val context: Context) {
             writer?.flush()
             writer?.close()
         } catch (_: Exception) {
-            // ignore close errors
         } finally {
             writer = null
         }

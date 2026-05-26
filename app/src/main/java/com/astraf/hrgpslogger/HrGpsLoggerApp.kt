@@ -14,7 +14,6 @@ class HrGpsLoggerApp : Application() {
         super.onCreate()
         CrashLogManager.install(this)
         MapLibre.getInstance(this)
-        // Тайлы кешируются в приватном каталоге приложения (FileSource default path).
         FileSource.getInstance(this)
         LoggingRecovery.startIfNeeded(this)
     }

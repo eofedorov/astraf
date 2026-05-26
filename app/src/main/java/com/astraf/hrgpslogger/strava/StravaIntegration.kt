@@ -119,7 +119,6 @@ class StravaIntegration(context: Context) {
             try {
                 createClient().deauthorize(accessToken)
             } catch (_: Exception) {
-                // ignore remote deauth errors
             }
         }
         tokenStore.clear()

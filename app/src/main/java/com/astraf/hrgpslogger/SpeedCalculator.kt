@@ -1,8 +1,6 @@
 package com.astraf.hrgpslogger
 
-/**
- * Сглаживание текущей скорости по окну accepted GPS-точек (3–5 секунд).
- */
+/** Сглаживание скорости по окну accepted GPS-точек ([windowMs]). */
 class SpeedCalculator(
     private val windowMs: Long = 4_000L,
     private val stationaryKmh: Float = 1.5f,

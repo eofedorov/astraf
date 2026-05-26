@@ -9,7 +9,7 @@ import org.junit.Test
 class GpsTrackQualityProcessorTest {
 
     private lateinit var processor: GpsTrackQualityProcessor
-    private lateinit var config: GpsFilterConfig
+    private lateinit var config: GpsProcessingConfig
     private val acceptedPoints = mutableListOf<AcceptedGpsPoint>()
 
     @Before
@@ -18,8 +18,6 @@ class GpsTrackQualityProcessorTest {
         processor = GpsTrackQualityProcessor(config)
         acceptedPoints.clear()
     }
-
-    // --- existing smoke ---
 
     @Test
     fun accept_passesAltitudeToAcceptedPoint() {
@@ -476,8 +474,6 @@ class GpsTrackQualityProcessorTest {
         assertTrue(next.derivedSpeedKmh!! in 20f..45f)
         assertTrue(processor.debugStats.maxCalculatedSpeedKmh <= 45f)
     }
-
-    // --- pipeline scenarios (gps-hadler.md) ---
 
     @Test
     fun degradedPoint_acceptedWithLowTrust() {

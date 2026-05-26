@@ -94,10 +94,6 @@ class LoggerSession(context: Context) {
         restoreTrackAndStatsFromFile(fileName)
     }
 
-    /**
-     * @param resumeFileName имя CSV в filesDir для продолжения записи после перезапуска
-     * @return имя CSV-файла или null
-     */
     fun startCsvCollection(resumeFileName: String? = null): String? {
         csvCollectJob?.cancel()
 
@@ -237,7 +233,6 @@ class LoggerSession(context: Context) {
         )
     }
 
-    /** Перезапускает motion-политику автопаузы / автовозобновления. */
     internal fun reconcileAutoPausePolicy() {
         autoPausePolicyJob?.cancel()
         autoPausePolicyJob = null

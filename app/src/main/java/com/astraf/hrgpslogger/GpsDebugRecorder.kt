@@ -193,7 +193,6 @@ class GpsDebugRecorder(
             writer?.flush()
             writer?.close()
         } catch (_: Exception) {
-            // ignore
         } finally {
             writer = null
             activeCsvFileName = null

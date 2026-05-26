@@ -29,7 +29,6 @@ object CrashLogManager {
                     try {
                         CrashLogStore.save(appContext, buildReport(appContext, thread, throwable))
                     } catch (_: Exception) {
-                        // ignore secondary failures while crashing
                     }
                 }
                 defaultHandler?.uncaughtException(thread, throwable)

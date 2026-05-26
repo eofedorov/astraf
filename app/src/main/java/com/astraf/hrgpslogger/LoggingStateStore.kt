@@ -2,9 +2,6 @@ package com.astraf.hrgpslogger
 
 import android.content.Context
 
-/**
- * Сохраняет состояние активной записи, чтобы восстановить её после убийства процесса.
- */
 object LoggingStateStore {
 
     private const val PREFS_NAME = "logging_state"
@@ -20,9 +17,6 @@ object LoggingStateStore {
     fun isPaused(context: Context): Boolean =
         prefs(context).getBoolean(KEY_PAUSED, false)
 
-    /**
-     * Ручная пауза пользователем. Для активных поездок без ключа считается ручной (старые версии приложения).
-     */
     fun isManualPauseWhilePaused(context: Context): Boolean {
         if (!isPaused(context)) return false
         val p = prefs(context)

@@ -4,9 +4,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
-/**
- * Единый слой качества GPS: фильтрация raw-точек, accepted-поток, скорость и debug-статистика.
- */
 class GpsRideController(
     private val config: GpsProcessingConfig = GpsProcessingConfig(),
     debugLogging: Boolean = false,
@@ -57,7 +54,6 @@ class GpsRideController(
         publishDebugStats()
     }
 
-    /** Явный разрыв сегмента при паузе/возобновлении записи. */
     fun markExternalSegmentBreak() {
         processor.markExternalSegmentBreak()
         publishDebugStats()

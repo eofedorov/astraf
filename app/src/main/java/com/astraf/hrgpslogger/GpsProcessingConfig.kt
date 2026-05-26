@@ -1,8 +1,6 @@
 package com.astraf.hrgpslogger
 
-/**
- * Все числовые пороги GPS-pipeline в одном месте (велосипед, консервативно).
- */
+/** Пороги GPS-pipeline для велосипеда. */
 data class GpsProcessingConfig(
     val firstFixRequiredAccuracyMeters: Float = 25f,
     val accuracyGoodMeters: Float = 15f,
@@ -32,6 +30,3 @@ data class GpsProcessingConfig(
     val smoothingMaxAlpha: Float = 0.85f,
     val smoothingDegradedAlphaScale: Float = 0.45f,
 )
-
-/** @deprecated Используйте [GpsProcessingConfig]; оставлено для совместимости тестов. */
-typealias GpsFilterConfig = GpsProcessingConfig

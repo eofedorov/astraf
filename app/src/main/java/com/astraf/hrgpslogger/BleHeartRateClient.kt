@@ -61,6 +61,7 @@ class BleHeartRateClient(context: Context) {
         override fun onScanResult(callbackType: Int, result: ScanResult) {
             val address = result.device?.address ?: return
             if (!autoConnectScan) return
+            // ScanFilter по MAC для непарного устройства не используем — фильтруем здесь.
             if (!address.equals(TARGET_DEVICE_ADDRESS, ignoreCase = true)) return
             connect(address)
         }
@@ -166,8 +167,6 @@ class BleHeartRateClient(context: Context) {
             .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
             .build()
         try {
-            // Фильтр по MAC не работает для непарных устройств (Android 8+).
-            // Адрес проверяем в onScanResult.
             adapter.bluetoothLeScanner.startScan(null, settings, scanCallback)
             mainHandler.removeCallbacks(scanTimeoutRunnable)
             mainHandler.postDelayed(scanTimeoutRunnable, SCAN_TIMEOUT_MS)

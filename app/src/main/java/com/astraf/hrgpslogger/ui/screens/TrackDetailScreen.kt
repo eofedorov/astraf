@@ -37,6 +37,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
@@ -73,6 +74,9 @@ fun TrackDetailScreen(
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
+    val resources = LocalResources.current
+    val gpxExportFailed = stringResource(R.string.track_gpx_export_failed)
+    val gpxShareChooser = stringResource(R.string.track_gpx_share_chooser)
     var showDeleteDialog by remember { mutableStateOf(false) }
     var showRenameDialog by remember { mutableStateOf(false) }
     var renameDraft by remember(detail?.fileName) {
@@ -218,7 +222,7 @@ fun TrackDetailScreen(
                             actionMessage = actionMessage,
                             onExportGpx = {
                                 if (detail.samples.isEmpty()) {
-                                    actionMessage = context.getString(R.string.track_gpx_export_failed)
+                                    actionMessage = gpxExportFailed
                                     return@TrackActionsSection
                                 }
                                 runCatching {
@@ -227,7 +231,7 @@ fun TrackDetailScreen(
                                     val shareIntent = GpxSharing.buildShareIntent(
                                         context = context,
                                         gpxFile = gpxFile,
-                                        subject = context.getString(
+                                        subject = resources.getString(
                                             R.string.track_gpx_share_subject,
                                             detail.displayName ?: detail.fileName,
                                         ),
@@ -235,12 +239,12 @@ fun TrackDetailScreen(
                                     context.startActivity(
                                         Intent.createChooser(
                                             shareIntent,
-                                            context.getString(R.string.track_gpx_share_chooser),
+                                            gpxShareChooser,
                                         ),
                                     )
                                     actionMessage = null
                                 }.onFailure {
-                                    actionMessage = context.getString(R.string.track_gpx_export_failed)
+                                    actionMessage = gpxExportFailed
                                 }
                             },
                             onRename = {

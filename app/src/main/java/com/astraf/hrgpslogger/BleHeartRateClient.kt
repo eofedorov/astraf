@@ -13,7 +13,6 @@ import android.bluetooth.le.ScanCallback
 import android.bluetooth.le.ScanResult
 import android.bluetooth.le.ScanSettings
 import android.content.Context
-import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
@@ -112,8 +111,7 @@ class BleHeartRateClient(context: Context) {
                 _statusMessage.value = "Descriptor CCCD не найден"
                 return
             }
-            descriptor.value = BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE
-            gatt.writeDescriptor(descriptor)
+            gatt.writeDescriptor(descriptor, BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE)
         }
 
         override fun onCharacteristicChanged(
@@ -121,23 +119,8 @@ class BleHeartRateClient(context: Context) {
             characteristic: BluetoothGattCharacteristic,
             value: ByteArray,
         ) {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
-                characteristic.uuid == HEART_RATE_MEASUREMENT_UUID
-            ) {
+            if (characteristic.uuid == HEART_RATE_MEASUREMENT_UUID) {
                 _heartRateBpm.value = parseHeartRate(value)
-            }
-        }
-
-        @Deprecated("Deprecated in Java")
-        override fun onCharacteristicChanged(
-            gatt: BluetoothGatt,
-            characteristic: BluetoothGattCharacteristic,
-        ) {
-            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU &&
-                characteristic.uuid == HEART_RATE_MEASUREMENT_UUID
-            ) {
-                val bpm = parseHeartRate(characteristic.value ?: return)
-                _heartRateBpm.value = bpm
             }
         }
 

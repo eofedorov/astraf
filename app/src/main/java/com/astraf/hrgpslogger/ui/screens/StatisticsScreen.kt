@@ -72,6 +72,7 @@ fun StatisticsScreen(
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
+    val statsLoadError = stringResource(R.string.stats_load_error)
     val scope = rememberCoroutineScope()
     val csvPath by session.csvLogger.currentFilePath.collectAsStateWithLifecycle()
     val recordingPhase by session.csvLogger.phase.collectAsStateWithLifecycle()
@@ -106,7 +107,7 @@ fun StatisticsScreen(
                     TrackRepository(context).listTracks(activeFilePath = activePath)
                 }
             } catch (e: Exception) {
-                loadError = e.message ?: context.getString(R.string.stats_load_error)
+                loadError = e.message ?: statsLoadError
             } finally {
                 isLoading = false
             }

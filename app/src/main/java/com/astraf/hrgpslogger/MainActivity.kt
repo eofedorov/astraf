@@ -2,7 +2,6 @@ package com.astraf.hrgpslogger
 
 import android.content.Intent
 import android.net.Uri
-import android.os.Build
 import androidx.lifecycle.lifecycleScope
 import android.os.Bundle
 import android.os.PowerManager
@@ -21,8 +20,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.DirectionsBike
 import androidx.compose.material.icons.filled.BarChart
-import androidx.compose.material.icons.filled.DirectionsBike
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Icon
@@ -161,10 +160,6 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun refreshBatteryOptimizationState() {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) {
-            batteryOptimizationEnabled = false
-            return
-        }
         val powerManager = getSystemService(POWER_SERVICE) as PowerManager
         batteryOptimizationEnabled = !powerManager.isIgnoringBatteryOptimizations(packageName)
     }
@@ -208,7 +203,6 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun openBatteryOptimizationSettings() {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return
         val packageUri = Uri.parse("package:$packageName")
         val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
             data = packageUri
@@ -221,7 +215,7 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-private val TabBarHeight = 48.dp
+private val TabBarHeight = 60.dp
 
 private enum class AppTab {
     Settings,
@@ -359,7 +353,7 @@ private fun ThinTabBar(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .height(48.dp)
+            .height(TabBarHeight)
             .background(MaterialTheme.colorScheme.surfaceContainer),
         horizontalArrangement = Arrangement.SpaceEvenly,
         verticalAlignment = Alignment.CenterVertically,
@@ -377,7 +371,7 @@ private fun ThinTabBar(
         }
         IconButton(onClick = { onTabSelected(AppTab.Ride) }) {
             Icon(
-                imageVector = Icons.Default.DirectionsBike,
+                imageVector = Icons.AutoMirrored.Filled.DirectionsBike,
                 contentDescription = stringResource(R.string.tab_ride),
                 tint = if (selectedTab == AppTab.Ride) {
                     MaterialTheme.colorScheme.primary

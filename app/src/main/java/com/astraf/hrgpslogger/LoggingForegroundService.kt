@@ -8,7 +8,6 @@ import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
-import android.os.Build
 import android.os.IBinder
 import android.os.PowerManager
 import android.text.SpannableString
@@ -169,18 +168,14 @@ class LoggingForegroundService : Service() {
             autoPaused = paused && session.isAutoPaused.value,
             waitingForGps = session.csvLogger.phase.value == RecordingPhase.WaitingForGps,
         )
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            val type = ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION or
-                ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE
-            ServiceCompat.startForeground(
-                this,
-                NOTIFICATION_ID,
-                notification,
-                type,
-            )
-        } else {
-            startForeground(NOTIFICATION_ID, notification)
-        }
+        val type = ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION or
+            ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE
+        ServiceCompat.startForeground(
+            this,
+            NOTIFICATION_ID,
+            notification,
+            type,
+        )
     }
 
     private fun startNotificationUpdates() {
@@ -234,7 +229,6 @@ class LoggingForegroundService : Service() {
     }
 
     private fun createNotificationChannel() {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
         val channel = NotificationChannel(
             CHANNEL_ID,
             getString(R.string.notification_channel_name),
@@ -326,11 +320,7 @@ class LoggingForegroundService : Service() {
             val intent = Intent(context, LoggingForegroundService::class.java).apply {
                 if (resume) action = ACTION_RESUME
             }
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                context.startForegroundService(intent)
-            } else {
-                context.startService(intent)
-            }
+            context.startForegroundService(intent)
         }
 
         fun pause(context: Context) {
@@ -345,11 +335,7 @@ class LoggingForegroundService : Service() {
             val intent = Intent(context, LoggingForegroundService::class.java).apply {
                 action = ACTION_RESUME_SESSION
             }
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                context.startForegroundService(intent)
-            } else {
-                context.startService(intent)
-            }
+            context.startForegroundService(intent)
         }
 
         fun stop(context: Context) {

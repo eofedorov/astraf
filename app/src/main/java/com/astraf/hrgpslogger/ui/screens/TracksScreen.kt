@@ -73,6 +73,9 @@ fun TracksScreen(
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
+    val gpxExportSuccess = stringResource(R.string.track_gpx_export_success)
+    val gpxExportFailed = stringResource(R.string.track_gpx_export_failed)
+    val tracksLoadError = stringResource(R.string.tracks_load_error)
     val scope = rememberCoroutineScope()
     val csvPath by session.csvLogger.currentFilePath.collectAsStateWithLifecycle()
     val recordingPhase by session.csvLogger.phase.collectAsStateWithLifecycle()
@@ -101,11 +104,7 @@ fun TracksScreen(
             val exported = withContext(Dispatchers.IO) {
                 exportGpxToUri(context, fileName, uri)
             }
-            actionMessage = if (exported) {
-                context.getString(R.string.track_gpx_export_success)
-            } else {
-                context.getString(R.string.track_gpx_export_failed)
-            }
+            actionMessage = if (exported) gpxExportSuccess else gpxExportFailed
         }
     }
 
@@ -120,7 +119,7 @@ fun TracksScreen(
                     repository.listTracks(activeFilePath = activePath)
                 }
             } catch (e: Exception) {
-                loadError = e.message ?: context.getString(R.string.tracks_load_error)
+                loadError = e.message ?: tracksLoadError
             } finally {
                 isLoading = false
             }

@@ -121,7 +121,7 @@ internal object OsmMiniMapTiles {
         val bytes = runCatching {
             httpClient.newCall(request).execute().use { response ->
                 if (!response.isSuccessful) return@use null
-                response.body?.bytes()
+                response.body.bytes()
             }
         }.getOrNull() ?: return null
         val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)?.asImageBitmap() ?: return null

@@ -22,6 +22,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -65,6 +66,8 @@ fun RideScreen(
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
+    val resources = LocalResources.current
+    val debugShareChooser = stringResource(R.string.ride_debug_share_chooser)
     val scope = rememberCoroutineScope()
     val heartRate by session.bleClient.heartRateBpm.collectAsStateWithLifecycle()
     val tripStats by session.tripStatsTracker.stats.collectAsStateWithLifecycle()
@@ -210,13 +213,16 @@ fun RideScreen(
                         val shareIntent = GpsDebugSharing.buildShareIntent(
                             context = context,
                             jsonFile = jsonFile,
-                            subject = context.getString(R.string.ride_debug_share_subject, csvFileName),
+                            subject = resources.getString(
+                                R.string.ride_debug_share_subject,
+                                csvFileName,
+                            ),
                         )
                         withContext(Dispatchers.Main) {
                             context.startActivity(
                                 Intent.createChooser(
                                     shareIntent,
-                                    context.getString(R.string.ride_debug_share_chooser),
+                                    debugShareChooser,
                                 ),
                             )
                         }
